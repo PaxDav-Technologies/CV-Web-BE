@@ -12,13 +12,13 @@ const pool = mysql.createPool({
 
 const testConnection = async () => {
   try {
-  const connection = await pool.getConnection();
-  const [rows] = await connection.query('SELECT NOW() AS current_time;');
-  console.log(`⏰ Current time from DB: ${rows[0].current_time}`);
-  await connection.end();
-  } catch(err) {
+    const connection = await pool.getConnection();
+    const [rows] = await connection.query('SELECT NOW() AS current_time;');
+    console.log(`⏰ Current time from DB: ${rows[0].current_time}`);
+    await connection.end();
+  } catch (err) {
     console.error(`❌ MySQL connection failed: ${err.message}`);
   }
-}
+};
 
-module.exports = {pool, testConnection};
+module.exports = { pool, testConnection };
