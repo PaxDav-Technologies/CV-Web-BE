@@ -1,5 +1,7 @@
 const { pool } = require('../config/db');
 const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+
 const {
   sendVerificationCode,
   sendForgotPasswordCode,
@@ -70,7 +72,14 @@ exports.login = async (req, res) => {
     if (!isMatch) {
       return res.status(400).json({ message: `Incorrect password` });
     }
-    return res.status(200).json({ message: 'Login successful' });
+    const token = jwt.sign(
+      { id: user.id, role: user.role },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: '1d',
+      }
+    );
+    return res.status(200).json({ message: 'Login successful', token });
   } catch (error) {
     return res.status(500).json({ message: 'Internal Server Error' });
   }
@@ -103,13 +112,34 @@ exports.verifyForgotPasswordCode = async (req, res) => {
     const { code } = req.body;
     const connection = await pool.getConnection();
     const [codeData] = await connection.query(
-      `SELECT code, expires_at, user_id FROM codes WHERE code = ?`,
+      `SELECT c.code, c.expires_at, u.id AS user_id, u.name, u.email, u.avatar, u.method, u.role
+       FROM codes c
+       JOIN user u ON u.id = c.user_id
+       WHERE c.code = ? AND c.purpose = 'reset_password'`,
       [code]
     );
-    if(codeData === 0) {
-      return res.status(400).json({message: `Invalid code`});
+    if (!codeData || codeData.length === 0) {
+      return res.status(400).json({ message: `Invalid code` });
     }
-    const [userData] = connection.query();
+
+    const entry = codeData[0];
+    // Check expiration
+    if (entry.expires_at && new Date(entry.expires_at) < new Date()) {
+      return res.status(400).json({ message: `Code has expired` });
+    }
+
+    // Return user info (excluding password)
+    return res.status(200).json({
+      message: `Code verified`,
+      user: {
+        id: entry.user_id,
+        name: entry.name,
+        email: entry.email,
+        avatar: entry.avatar,
+        method: entry.method,
+        role: entry.role,
+      },
+    });
   } catch (error) {
     return res.status(500).json({ message: `Internal Server Error` });
   }
@@ -118,7 +148,14 @@ exports.verifyForgotPasswordCode = async (req, res) => {
 exports.resetPassword = async (req, res) => {
   try {
     const { password } = req.body;
+    const connection = await pool.getConnection();
+    const hashedPasssword = await bcrypt.hash(password, 10);
+    await connection.query('UPDATE user SET password = ? WHERE id = ?', [
+      hashedPasssword,
+      req.user.id,
+    ]);
+    return res.status(200).json({ message: `Password reset successful` });
   } catch (error) {
-    return res.status(500).json({ message: `Internal Serever Error` });
+    return res.status(500).json({ message: `Internal Server Error` });
   }
 };
