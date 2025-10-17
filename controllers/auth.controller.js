@@ -123,12 +123,10 @@ exports.verifyForgotPasswordCode = async (req, res) => {
     }
 
     const entry = codeData[0];
-    // Check expiration
     if (entry.expires_at && new Date(entry.expires_at) < new Date()) {
       return res.status(400).json({ message: `Code has expired` });
     }
 
-    // Return user info (excluding password)
     return res.status(200).json({
       message: `Code verified`,
       user: {
@@ -136,7 +134,6 @@ exports.verifyForgotPasswordCode = async (req, res) => {
         name: entry.name,
         email: entry.email,
         avatar: entry.avatar,
-        method: entry.method,
         role: entry.role,
       },
     });
