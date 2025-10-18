@@ -38,7 +38,7 @@ router.post('/login', login);
 router.post('/verify-email', verifyEmail);
 // router.post('/resend-verification');
 router.post('/forgot-password', forgotPassword);
-router.post('verify-forgot-password', verifyForgotPasswordCode);
+router.post('/verify-forgot-password', verifyForgotPasswordCode);
 router.post('/reset-password', authenticate, resetPassword);
 
 module.exports = router;

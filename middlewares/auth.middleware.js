@@ -15,6 +15,10 @@ exports.authenticate = async (req, res, next) => {
     if (!user) {
       return res.status(401).json({ message: `Unauthorized` });
     }
+    req.user = {
+      id: user.id,
+      role: user.role,
+    };
     next();
   } catch (error) {
     return res.status(500).json({ message: `Internal Server Error` });

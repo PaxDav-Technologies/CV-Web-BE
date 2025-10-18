@@ -4,7 +4,7 @@ CREATE TABLE IF NOT EXISTS `user` (
   `email` VARCHAR(30) NOT NULL,
   `password` VARCHAR(255) DEFAULT NULL,
   `verified` BOOLEAN DEFAULT FALSE,
-  `avatar` VARCHAR(200) NOT NULL,
+  `avatar` VARCHAR(255) NOT NULL,
   `method` ENUM('google', 'apple', 'password') DEFAULT 'password',
   `role` ENUM('admin', 'customer', 'agent') DEFAULT 'customer',
   INDEX `idx_email` (`email`)

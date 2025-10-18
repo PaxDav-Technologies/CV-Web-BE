@@ -76,15 +76,13 @@ exports.register = async (req, res) => {
         .json({ message: 'Email and password are required' });
     }
 
-    if (!userRoles.includes(role)) {
-      return res
-        .status(400)
-        .json({ message: `${req.body.role} is not a valid role` });
+    if (!['customer', 'agent'].includes(role)) {
+      return res.status(400).json({ message: `${role} is not a valid role` });
     }
 
     const [userExists] = await connection.query(
       'SELECT * FROM user WHERE email = ?',
-      [req.body.email]
+      [email]
     );
     if (userExists.length > 0) {
       return res.status(400).json({ message: 'Email already in use' });
@@ -92,25 +90,36 @@ exports.register = async (req, res) => {
 
     const hashedPasssword = await bcrypt.hash(req.body.password, 10);
 
+    const defaultImage = `https://imgs.search.brave.com/7JPVrX1-rrex4c53w-1YqddoSVInG8opEOsfUQYuBpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/dmVjdG9yc3RvY2su/Y29tL2kvNTAwcC83/MC8wMS9kZWZhdWx0/LW1hbGUtYXZhdGFy/LXByb2ZpbGUtaWNv/bi1ncmV5LXBob3Rv/LXZlY3Rvci0zMTgy/NzAwMS5qcGc`;
     const newUser = await connection.query(
-      'INSERT INTO user (name, email, password, method, role) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO user (name, email, password, method, role, avatar) VALUES (?, ?, ?, ?, ?, ?)',
       [
-        req.body.name,
-        req.body.email,
+        name,
+        email,
         hashedPasssword,
         'password',
-        req.body.role || 'customer',
+        role || 'customer',
+        defaultImage,
       ]
     );
 
     const code = 1234;
-
+    await connection.query(
+      `INSERT INTO codes (code, user_id, purpose, expires_at) VALUES (?, ?, ?, ?)`,
+      [
+        code,
+        newUser[0].insertId,
+        'verification',
+        new Date(Date.now() + 60 * 60 * 1000),
+      ]
+    );
     await sendVerificationCode(req.body.email, code);
 
     return res
       .status(201)
       .json({ message: 'User registered successfully', email: req.body.email });
   } catch (error) {
+    console.log(error);
     return res.status(500).json({ message: 'Internal server error' });
   } finally {
     if (connection) connection.release();
@@ -120,21 +129,30 @@ exports.register = async (req, res) => {
 exports.login = async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    const [user] = connection.query('SELECT * FROM user WHERE email = ?', [
-      req.body.email,
-    ]);
-    if (user.length < 0) {
+    const [user] = await connection.query(
+      'SELECT * FROM user WHERE email = ?',
+      [req.body.email]
+    );
+    if (user.length === 0) {
       return res.status(404).json({ message: `User not found` });
     }
-    if (user.password == null) {
+    if (user[0].password == null) {
       return res.status(400).json({ message: `Please login with social auth` });
     }
-    const isMatch = await bcrypt.compare(req.body.password, user.password);
+    const isMatch = await bcrypt.compare(req.body.password, user[0].password);
     if (!isMatch) {
       return res.status(400).json({ message: `Incorrect password` });
     }
+
+    console.log(user);
+    if (!user[0].verified) {
+      return res
+        .status(401)
+        .json({ message: `Please verify your email address` });
+    }
+
     const token = jwt.sign(
-      { id: user.id, role: user.role },
+      { id: user[0].id, role: user[0].role },
       process.env.JWT_SECRET,
       {
         expiresIn: '1d',
@@ -142,6 +160,7 @@ exports.login = async (req, res) => {
     );
     return res.status(200).json({ message: 'Login successful', token });
   } catch (error) {
+    console.log(error);
     return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
     if (connection) connection.release();
@@ -152,20 +171,31 @@ exports.forgotPassword = async (req, res) => {
   const connection = await pool.getConnection();
   try {
     const { email } = req.body;
-    const [user] = connection.query('SELECT email FROM user WHERE email = ?', [
-      email,
-    ]);
+    const [user] = await connection.query(
+      'SELECT id, email FROM user WHERE email = ?',
+      [email]
+    );
     if (user.length === 0) {
       return res
         .status(400)
         .json({ message: `Account with this email not found` });
     }
     const code = 1234;
+    await connection.query(
+      `INSERT INTO codes (code, user_id, purpose, expires_at) VALUES (?, ?, ?, ?)`,
+      [
+        code,
+        user[0].id,
+        'reset_password',
+        new Date(Date.now() + 15 * 60 * 1000),
+      ]
+    );
     await sendForgotPasswordCode(email, code);
     return res
       .status(200)
       .json({ message: `A code has been sent to ${email}` });
   } catch (error) {
+    console.log(error);
     return res.status(500).json({ message: 'InternalServer Error' });
   } finally {
     if (connection) connection.release();
@@ -190,8 +220,8 @@ exports.verifyEmail = async (req, res) => {
       return res.status(400).json({ message: `Invalid code` });
     }
     await connection.query(`UPDATE user SET verified = ? WHERE id = ?`, [
-      'TRUE',
-      codeData.user_id,
+      true,
+      codeData[0].user_id,
     ]);
     return res.status(200).json({ message: `Verification successful` });
   } catch (error) {
@@ -204,7 +234,7 @@ exports.verifyEmail = async (req, res) => {
 exports.verifyForgotPasswordCode = async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    const { code } = req.body;
+    const { code, email } = req.body;
     const [codeData] = await connection.query(
       `SELECT c.code, c.expires_at, u.id AS user_id, u.name, u.email, u.avatar, u.method, u.role
        FROM codes c
@@ -212,7 +242,7 @@ exports.verifyForgotPasswordCode = async (req, res) => {
        WHERE c.code = ? AND c.purpose = 'reset_password'`,
       [code]
     );
-    if (!codeData || codeData.length === 0) {
+    if (!codeData || codeData.length === 0 || email !== codeData[0].email) {
       return res.status(400).json({ message: `Invalid code` });
     }
 
@@ -221,15 +251,17 @@ exports.verifyForgotPasswordCode = async (req, res) => {
       return res.status(400).json({ message: `Code has expired` });
     }
 
+    const token = jwt.sign(
+      { id: codeData[0].user_id, role: codeData[0].role },
+      process.env.JWT_SECRET,
+      {
+        expiresIn: '10m',
+      }
+    );
+
     return res.status(200).json({
       message: `Code verified`,
-      user: {
-        id: entry.user_id,
-        name: entry.name,
-        email: entry.email,
-        avatar: entry.avatar,
-        role: entry.role,
-      },
+      token
     });
   } catch (error) {
     return res.status(500).json({ message: `Internal Server Error` });
@@ -249,6 +281,7 @@ exports.resetPassword = async (req, res) => {
     ]);
     return res.status(200).json({ message: `Password reset successful` });
   } catch (error) {
+    console.log(error);
     return res.status(500).json({ message: `Internal Server Error` });
   } finally {
     if (connection) connection.release();
