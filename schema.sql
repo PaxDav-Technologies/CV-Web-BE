@@ -3,6 +3,7 @@ CREATE TABLE `user` IF NOT EXISTS (
   `name` VARCHAR(50) NOT NULL,
   `email` VARCHAR(30) NOT NULL,
   `password` VARCHAR(255) DEFAULT NULL,
+  `verified` BOOLEAN DEFAULT FALSE,
   `avatar` VARCHAR(200) NOT NULL,
   `method` ENUM(`google`, `apple`, `password`) NOT NULL,
   `role` ENUM(`admin`, `customer`, `agent`)

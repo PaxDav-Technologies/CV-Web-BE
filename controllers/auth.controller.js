@@ -9,6 +9,7 @@ const {
 const { userRoles } = require('../utils/enum');
 
 exports.register = async (req, res) => {
+  const connection = await pool.getConnection();
   try {
     if (!req.body.email || !req.body.password) {
       return res
@@ -22,7 +23,6 @@ exports.register = async (req, res) => {
         .json({ message: `${req.body.role} is not a valid role` });
     }
 
-    const connection = await pool.getConnection();
     const [userExists] = await connection.query(
       'SELECT * FROM user WHERE email = ?',
       [req.body.email]
@@ -86,9 +86,9 @@ exports.login = async (req, res) => {
 };
 
 exports.forgotPassword = async (req, res) => {
+  const connection = await pool.getConnection();
   try {
     const { email } = req.body;
-    const connection = await pool.getConnection();
     const [user] = connection.query('SELECT email FROM user WHERE email = ?', [
       email,
     ]);
@@ -104,13 +104,44 @@ exports.forgotPassword = async (req, res) => {
       .json({ message: `A code has been sent to ${email}` });
   } catch (error) {
     return res.status(500).json({ message: 'InternalServer Error' });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+exports.verifyEmail = async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    const { code, email } = req.body;
+    const [codeData] = await connection.query(
+      `SELECT c.code, c.user_id, c.created_at, c.expires_at, u.email, u.role 
+      FROM codes c 
+      JOIN user u on u.id = c.user_id 
+      WHERE c.code = ? and c.purpose = ?`,
+      [code, `verification`]
+    );
+    if (!codeData || codeData.length === 0) {
+      return res.status(400).json({ message: `Invalid code` });
+    }
+    if (codeData[0].email !== email) {
+      return res.status(400).json({ message: `Invalid code` });
+    }
+    await connection.query(`UPDATE user SET verified = ? WHERE id = ?`, [
+      'TRUE',
+      codeData.user_id,
+    ]);
+    return res.status(200).json({ message: `Verification successful` });
+  } catch (error) {
+    return res.status(500).json({ message: `Internal Server Error` });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
 exports.verifyForgotPasswordCode = async (req, res) => {
+  const connection = await pool.getConnection();
   try {
     const { code } = req.body;
-    const connection = await pool.getConnection();
     const [codeData] = await connection.query(
       `SELECT c.code, c.expires_at, u.id AS user_id, u.name, u.email, u.avatar, u.method, u.role
        FROM codes c
@@ -139,13 +170,15 @@ exports.verifyForgotPasswordCode = async (req, res) => {
     });
   } catch (error) {
     return res.status(500).json({ message: `Internal Server Error` });
+  } finally {
+    if (connection) connection.release();
   }
 };
 
 exports.resetPassword = async (req, res) => {
+  const connection = await pool.getConnection();
   try {
     const { password } = req.body;
-    const connection = await pool.getConnection();
     const hashedPasssword = await bcrypt.hash(password, 10);
     await connection.query('UPDATE user SET password = ? WHERE id = ?', [
       hashedPasssword,
@@ -154,5 +187,7 @@ exports.resetPassword = async (req, res) => {
     return res.status(200).json({ message: `Password reset successful` });
   } catch (error) {
     return res.status(500).json({ message: `Internal Server Error` });
+  } finally {
+    if (connection) connection.release();
   }
 };
