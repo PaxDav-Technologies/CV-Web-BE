@@ -4,14 +4,11 @@ const jwt = require('jsonwebtoken');
 const passport = require('passport');
 // require('../utils/google');
 
-
 const {
   sendVerificationCode,
   sendForgotPasswordCode,
 } = require('../utils/emails');
 const { userRoles } = require('../utils/enum');
-
-
 
 exports.googleRegister = (req, res, next) => {
   passport.authenticate(
@@ -66,26 +63,20 @@ exports.googleLogin = (req, res, next) => {
   )(req, res, next);
 };
 
-
-
-
-
-
-
-
-
-
-
 exports.register = async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    if (!req.body.email || !req.body.password) {
+    const { email, password, name, role } = req.body;
+    if (!role) {
+      return res.status(400).json({ message: `Invalid role` });
+    }
+    if (!email || !password) {
       return res
         .status(400)
         .json({ message: 'Email and password are required' });
     }
 
-    if (!userRoles.includes(req.body.role)) {
+    if (!userRoles.includes(role)) {
       return res
         .status(400)
         .json({ message: `${req.body.role} is not a valid role` });
@@ -102,13 +93,12 @@ exports.register = async (req, res) => {
     const hashedPasssword = await bcrypt.hash(req.body.password, 10);
 
     const newUser = await connection.query(
-      'INSERT INTO user (name, email, password, avatar, method, role) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO user (name, email, password, method, role) VALUES (?, ?, ?, ?, ?, ?)',
       [
         req.body.name,
         req.body.email,
         hashedPasssword,
-        req.body.avatar || '',
-        req.body.method || 'password',
+        'password',
         req.body.role || 'customer',
       ]
     );
@@ -136,8 +126,8 @@ exports.login = async (req, res) => {
     if (user.length < 0) {
       return res.status(404).json({ message: `User not found` });
     }
-    if(user.password == null) {
-      return res.status(400).json({message: `Please login with social auth`})
+    if (user.password == null) {
+      return res.status(400).json({ message: `Please login with social auth` });
     }
     const isMatch = await bcrypt.compare(req.body.password, user.password);
     if (!isMatch) {
@@ -154,7 +144,7 @@ exports.login = async (req, res) => {
   } catch (error) {
     return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
-    if(connection) connection.release();
+    if (connection) connection.release();
   }
 };
 

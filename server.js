@@ -6,7 +6,7 @@ const compression = require('compression');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
-const {testConnection} = require('./config/db');
+const { testConnection } = require('./config/db');
 const authRouter = require('./routes/auth.route');
 
 const app = express();
@@ -22,7 +22,7 @@ app.use(helmet());
 app.use(compression());
 app.use(morgan('dev'));
 app.use(cors());
-app.use(bodyParser.json({limit: '100mb', extended: true}));
+app.use(bodyParser.json({ limit: '100mb', extended: true }));
 
 app.get('/', (req, res) => {
   res.send('API is running...');
@@ -31,6 +31,6 @@ app.get('/', (req, res) => {
 app.use('/api/auth', authRouter);
 
 app.listen(PORT, async () => {
-  await testConnection()
+  await testConnection();
   console.log(`Server is running on port ${PORT}`);
 });
