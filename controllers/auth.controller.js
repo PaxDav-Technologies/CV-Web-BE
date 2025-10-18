@@ -1,12 +1,80 @@
 const { pool } = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
+const passport = require('passport');
+require('../utils/google');
+
 
 const {
   sendVerificationCode,
   sendForgotPasswordCode,
 } = require('../utils/emails');
 const { userRoles } = require('../utils/enum');
+
+
+
+exports.googleRegister = (req, res, next) => {
+  passport.authenticate(
+    'google-register',
+    { session: false, prompt: 'select_account' },
+    async (err, user, info) => {
+      if (err) {
+        return res.redirect(
+          `${process.env.FRONTEND_URL}/auth/signup?error=${encodeURIComponent(
+            err.message
+          )}`
+        );
+      }
+      if (!user) {
+        return res.redirect(
+          `${process.env.FRONTEND_URL}/auth/signup?error=${encodeURIComponent(
+            'User not found'
+          )}`
+        );
+      }
+      await sendWelcomeEmail(user.email, user.firstName);
+      return res.redirect(`${process.env.FRONTEND_URL}/auth/login`);
+    }
+  )(req, res, next);
+};
+
+exports.googleLogin = (req, res, next) => {
+  passport.authenticate(
+    'google-login',
+    { session: false, prompt: 'select_account' },
+    (err, user, info) => {
+      if (err) return res.redirect(`${process.env.FRONTEND_URL}/auth/login`);
+
+      if (!user) {
+        return res.redirect(
+          `${process.env.FRONTEND_URL}/auth/login?error=${encodeURIComponent(
+            info?.message || 'Login failed'
+          )}`
+        );
+      }
+
+      const token = jwt.sign(
+        { id: user.id, email: user.email, role: user.role },
+        env.JWT_SECRET,
+        { expiresIn: '24h' }
+      );
+
+      return res.redirect(
+        `${process.env.DASHBOARD_URL}/dashboard/?token=${token}`
+      );
+    }
+  )(req, res, next);
+};
+
+
+
+
+
+
+
+
+
+
 
 exports.register = async (req, res) => {
   const connection = await pool.getConnection();
