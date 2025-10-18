@@ -2,7 +2,7 @@ const { pool } = require('../config/db');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
 const passport = require('passport');
-require('../utils/google');
+// require('../utils/google');
 
 
 const {

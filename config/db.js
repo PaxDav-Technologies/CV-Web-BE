@@ -13,9 +13,9 @@ const pool = mysql.createPool({
 const testConnection = async () => {
   try {
     const connection = await pool.getConnection();
-    const [rows] = await connection.query('SELECT NOW() AS current_time;');
+    const [rows] = await connection.query('SELECT NOW()');
     console.log(`⏰ Current time from DB: ${rows[0].current_time}`);
-    await connection.end();
+    await connection.release();
   } catch (err) {
     console.error(`❌ MySQL connection failed: ${err.message}`);
   }
