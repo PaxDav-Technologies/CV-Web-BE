@@ -60,13 +60,16 @@ exports.register = async (req, res) => {
 };
 
 exports.login = async (req, res) => {
+  const connection = await pool.getConnection();
   try {
-    const connection = await pool.getConnection();
     const [user] = connection.query('SELECT * FROM user WHERE email = ?', [
       req.body.email,
     ]);
     if (user.length < 0) {
       return res.status(404).json({ message: `User not found` });
+    }
+    if(user.password == null) {
+      return res.status(400).json({message: `Please login with social auth`})
     }
     const isMatch = await bcrypt.compare(req.body.password, user.password);
     if (!isMatch) {
@@ -82,6 +85,8 @@ exports.login = async (req, res) => {
     return res.status(200).json({ message: 'Login successful', token });
   } catch (error) {
     return res.status(500).json({ message: 'Internal Server Error' });
+  } finally {
+    if(connection) connection.release();
   }
 };
 
