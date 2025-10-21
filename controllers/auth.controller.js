@@ -55,14 +55,13 @@ exports.googleLogin = (req, res, next) => {
         env.JWT_SECRET,
         { expiresIn: '24h' }
       );
-      
+
       return res.redirect(
         `${process.env.DASHBOARD_URL}/dashboard/?token=${token}`
       );
     }
   )(req, res, next);
 };
-
 
 exports.adminLogin = async (req, res) => {
   const connection = await pool.getConnection();
@@ -109,11 +108,11 @@ exports.adminLogin = async (req, res) => {
 exports.registerAdmin = async (req, res) => {
   let connection;
   try {
-    const { name, email, password, avatar } = req.body;
-    if (!name || !email || !password || !avatar) {
+    const { name, email, password } = req.body;
+    if (!name || !email || !password) {
       return res
         .status(400)
-        .json({ message: 'Name, email, password, and avatar are required' });
+        .json({ message: 'Name, email, and password are required' });
     }
 
     connection = await pool.getConnection();
@@ -128,6 +127,7 @@ exports.registerAdmin = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const defaultMethod = 'password';
+    const avatar = `https://imgs.search.brave.com/7JPVrX1-rrex4c53w-1YqddoSVInG8opEOsfUQYuBpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/dmVjdG9yc3RvY2su/Y29tL2kvNTAwcC83/MC8wMS9kZWZhdWx0/LW1hbGUtYXZhdGFy/LXByb2ZpbGUtaWNv/bi1ncmV5LXBob3Rv/LXZlY3Rvci0zMTgy/NzAwMS5qcGc`;
     const role = 'admin';
     const result = await connection.query(
       'INSERT INTO user (name, email, password, avatar, method, role) VALUES (?, ?, ?, ?, ?, ?)',
@@ -135,7 +135,8 @@ exports.registerAdmin = async (req, res) => {
     );
 
     // Generate and send verification code
-    const code = Math.floor(1000 + Math.random() * 9000); // 4-digit code
+    const code = 1234;
+    // const code = Math.floor(1000 + Math.random() * 9000); // 4-digit code
     await sendVerificationCode(email, code);
 
     return res
