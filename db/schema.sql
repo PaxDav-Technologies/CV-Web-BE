@@ -122,7 +122,7 @@ CREATE TABLE IF NOT EXISTS `transactions`(
   INDEX `idx_reference` (`reference`)
 );
 
-CREATE TABLE IF NOT EXISTS `catergories`(
+CREATE TABLE IF NOT EXISTS `categories`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL,
   `description` LONGTEXT DEFAULT NULL,
@@ -139,8 +139,14 @@ CREATE TABLE IF NOT EXISTS `blogs`(
   `author_id` INT NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`author_id`) REFERENCES `user`(`id`),
-  FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`),
   INDEX `idx_author_id` (`author_id`),
   INDEX `idx_created_at` (`created_at`)
 );
 
+CREATE TABLE IF NOT EXISTS `blog_categories`(
+  `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+  `blog_id` INT NOT NULL,
+  `category_id` INT NOT NULL,
+  FOREIGN KEY (`blog_id`) REFERENCES `blogs`(`id`),
+  FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`)
+);
