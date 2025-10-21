@@ -55,12 +55,98 @@ exports.googleLogin = (req, res, next) => {
         env.JWT_SECRET,
         { expiresIn: '24h' }
       );
-
+      
       return res.redirect(
         `${process.env.DASHBOARD_URL}/dashboard/?token=${token}`
       );
     }
   )(req, res, next);
+};
+
+
+exports.adminLogin = async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    const { email, password } = req.body;
+    if (!email || !password) {
+      return res
+        .status(400)
+        .json({ message: 'Email and password are required' });
+    }
+    const [user] = await connection.query(
+      'SELECT * FROM user WHERE email = ? AND role = ?',
+      [email, 'admin']
+    );
+    if (user.length === 0) {
+      return res.status(404).json({ message: 'Admin not found' });
+    }
+    if (user[0].password == null) {
+      return res.status(400).json({ message: 'Please login with social auth' });
+    }
+    const isMatch = await bcrypt.compare(password, user[0].password);
+    if (!isMatch) {
+      return res.status(400).json({ message: 'Incorrect password' });
+    }
+    if (!user[0].verified) {
+      return res
+        .status(401)
+        .json({ message: 'Please verify your email address' });
+    }
+    const token = jwt.sign(
+      { id: user[0].id, role: user[0].role },
+      process.env.JWT_SECRET,
+      { expiresIn: '1d' }
+    );
+    return res.status(200).json({ message: 'Admin login successful', token });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+exports.registerAdmin = async (req, res) => {
+  let connection;
+  try {
+    const { name, email, password, avatar } = req.body;
+    if (!name || !email || !password || !avatar) {
+      return res
+        .status(400)
+        .json({ message: 'Name, email, password, and avatar are required' });
+    }
+
+    connection = await pool.getConnection();
+    // Check if email already exists
+    const [userExists] = await connection.query(
+      'SELECT * FROM user WHERE email = ?',
+      [email]
+    );
+    if (userExists.length > 0) {
+      return res.status(400).json({ message: 'Email already in use' });
+    }
+
+    const hashedPassword = await bcrypt.hash(password, 10);
+    const defaultMethod = 'password';
+    const role = 'admin';
+    const result = await connection.query(
+      'INSERT INTO user (name, email, password, avatar, method, role) VALUES (?, ?, ?, ?, ?, ?)',
+      [name, email, hashedPassword, avatar, defaultMethod, role]
+    );
+
+    // Generate and send verification code
+    const code = Math.floor(1000 + Math.random() * 9000); // 4-digit code
+    await sendVerificationCode(email, code);
+
+    return res
+      .status(201)
+      .json({ message: 'Admin registered successfully', email });
+  } catch (error) {
+    console.error(`Error registering new admin: ${error.message}`);
+    return res.status(500).json({ message: 'Internal server error' });
+  } finally {
+    if (connection) connection.release();
+  }
 };
 
 exports.register = async (req, res) => {
@@ -261,7 +347,7 @@ exports.verifyForgotPasswordCode = async (req, res) => {
 
     return res.status(200).json({
       message: `Code verified`,
-      token
+      token,
     });
   } catch (error) {
     return res.status(500).json({ message: `Internal Server Error` });

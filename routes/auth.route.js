@@ -5,8 +5,13 @@ const {
   resetPassword,
   verifyForgotPasswordCode,
   verifyEmail,
+  adminLogin,
+  registerAdmin,
 } = require('../controllers/auth.controller');
-const { authenticate } = require('../middlewares/auth.middleware');
+const {
+  authenticate,
+  authorizeRoles,
+} = require('../middlewares/auth.middleware');
 const passport = require('passport');
 
 const router = require('express').Router();
@@ -34,6 +39,13 @@ const router = require('express').Router();
 // router.get('/google/login/callback', googleLogin);
 
 router.post('/register', register);
+router.post(
+  '/admin/register',
+  authenticate,
+  authorizeRoles('admin'),
+  registerAdmin
+);
+router.post('/admin/login', adminLogin);
 router.post('/login', login);
 router.post('/verify-email', verifyEmail);
 // router.post('/resend-verification');
