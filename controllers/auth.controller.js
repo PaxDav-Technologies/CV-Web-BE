@@ -73,7 +73,7 @@ exports.adminLogin = async (req, res) => {
         .json({ message: 'Email and password are required' });
     }
     const [user] = await connection.query(
-      'SELECT * FROM user WHERE email = ? AND role = ?',
+      'SELECT * FROM account WHERE email = ? AND role = ?',
       [email, 'admin']
     );
     if (user.length === 0) {
@@ -108,17 +108,17 @@ exports.adminLogin = async (req, res) => {
 exports.registerAdmin = async (req, res) => {
   let connection;
   try {
-    const { name, email, password } = req.body;
-    if (!name || !email || !password) {
+    const { firstname, lastname, email, password, avatar, phone_number, username } = req.body;
+    if (!firstname || !lastname || !email || !password || !phone_number || !username) {
       return res
         .status(400)
-        .json({ message: 'Name, email, and password are required' });
+        .json({ message: 'Firstname, Lastname, email, and password are required' });
     }
 
     connection = await pool.getConnection();
     // Check if email already exists
     const [userExists] = await connection.query(
-      'SELECT * FROM user WHERE email = ?',
+      'SELECT * FROM account WHERE email = ?',
       [email]
     );
     if (userExists.length > 0) {
@@ -127,12 +127,18 @@ exports.registerAdmin = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const defaultMethod = 'password';
-    const avatar = `https://imgs.search.brave.com/7JPVrX1-rrex4c53w-1YqddoSVInG8opEOsfUQYuBpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/dmVjdG9yc3RvY2su/Y29tL2kvNTAwcC83/MC8wMS9kZWZhdWx0/LW1hbGUtYXZhdGFy/LXByb2ZpbGUtaWNv/bi1ncmV5LXBob3Rv/LXZlY3Rvci0zMTgy/NzAwMS5qcGc`;
+    // const avatar = `https://imgs.search.brave.com/7JPVrX1-rrex4c53w-1YqddoSVInG8opEOsfUQYuBpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/dmVjdG9yc3RvY2su/Y29tL2kvNTAwcC83/MC8wMS9kZWZhdWx0/LW1hbGUtYXZhdGFy/LXByb2ZpbGUtaWNv/bi1ncmV5LXBob3Rv/LXZlY3Rvci0zMTgy/NzAwMS5qcGc`;
     const role = 'admin';
     const result = await connection.query(
-      'INSERT INTO user (name, email, password, avatar, method, role) VALUES (?, ?, ?, ?, ?, ?)',
-      [name, email, hashedPassword, avatar, defaultMethod, role]
+      'INSERT INTO account (firstname, lastname, email, password, avatar, method, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
+      [firstname, lastname, email, hashedPassword, avatar, defaultMethod, role]
     );
+
+    await connection.query(`INSERT INTO admins (account_id, phone_number, username) VALUES (?, ?, ?)`, [
+      result[0].insertId,
+      phone_number,
+      username
+    ]);
 
     // Generate and send verification code
     const code = 1234;
@@ -153,22 +159,21 @@ exports.registerAdmin = async (req, res) => {
 exports.register = async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    const { email, password, name, role } = req.body;
-    if (!role) {
-      return res.status(400).json({ message: `Invalid role` });
-    }
+    const { email, password, firstname, lastname, isAgent=false } = req.body;
     if (!email || !password) {
       return res
         .status(400)
-        .json({ message: 'Email and password are required' });
+        .json({ message: 'Firstname, lastname, email and password are required' });
     }
 
-    if (!['customer', 'agent'].includes(role)) {
-      return res.status(400).json({ message: `${role} is not a valid role` });
+    if(isAgent) {
+      if(!req.body.phone_number || !req.body.professional_type || !req.body.experience_level) {
+        return res.status(400).json({message: `phone number, professional type and experience level are required`})
+      }
     }
 
     const [userExists] = await connection.query(
-      'SELECT * FROM user WHERE email = ?',
+      'SELECT * FROM account WHERE email = ?',
       [email]
     );
     if (userExists.length > 0) {
@@ -179,20 +184,30 @@ exports.register = async (req, res) => {
 
     const defaultImage = `https://imgs.search.brave.com/7JPVrX1-rrex4c53w-1YqddoSVInG8opEOsfUQYuBpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/dmVjdG9yc3RvY2su/Y29tL2kvNTAwcC83/MC8wMS9kZWZhdWx0/LW1hbGUtYXZhdGFy/LXByb2ZpbGUtaWNv/bi1ncmV5LXBob3Rv/LXZlY3Rvci0zMTgy/NzAwMS5qcGc`;
     const newUser = await connection.query(
-      'INSERT INTO user (name, email, password, method, role, avatar) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO account (firstname, lastname, email, password, method, role, avatar) VALUES (?, ?, ?, ?, ?, ?)',
       [
-        name,
+        firstname,
+        lastname,
         email,
         hashedPasssword,
         'password',
-        role || 'customer',
+        isAgent ? 'agent' : 'customer',
         defaultImage,
       ]
     );
 
+    if (isAgent) {
+      await connection.query(`INSERT INTO agents (account_id, phone_number, professional_type, experience_level) VALUES (?, ?, ?, ?)`, [
+        newUser[0].insertId,
+        req.body.phone_number,
+        req.body.professional_type || 'real_estate_agent',
+        req.body.experience_level || 'beginner',
+      ]);
+    }
+
     const code = 1234;
     await connection.query(
-      `INSERT INTO codes (code, user_id, purpose, expires_at) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO codes (code, account_id, purpose, expires_at) VALUES (?, ?, ?, ?)`,
       [
         code,
         newUser[0].insertId,
@@ -217,7 +232,7 @@ exports.login = async (req, res) => {
   const connection = await pool.getConnection();
   try {
     const [user] = await connection.query(
-      'SELECT * FROM user WHERE email = ?',
+      'SELECT * FROM account WHERE email = ?',
       [req.body.email]
     );
     if (user.length === 0) {
@@ -259,7 +274,7 @@ exports.forgotPassword = async (req, res) => {
   try {
     const { email } = req.body;
     const [user] = await connection.query(
-      'SELECT id, email FROM user WHERE email = ?',
+      'SELECT id, email FROM account WHERE email = ?',
       [email]
     );
     if (user.length === 0) {
@@ -269,7 +284,7 @@ exports.forgotPassword = async (req, res) => {
     }
     const code = 1234;
     await connection.query(
-      `INSERT INTO codes (code, user_id, purpose, expires_at) VALUES (?, ?, ?, ?)`,
+      `INSERT INTO codes (code, account_id, purpose, expires_at) VALUES (?, ?, ?, ?)`,
       [
         code,
         user[0].id,
@@ -294,9 +309,9 @@ exports.verifyEmail = async (req, res) => {
   try {
     const { code, email } = req.body;
     const [codeData] = await connection.query(
-      `SELECT c.code, c.user_id, c.created_at, c.expires_at, u.email, u.role 
+      `SELECT c.code, c.account_id, c.created_at, c.expires_at, a.email, a.role 
       FROM codes c 
-      JOIN user u on u.id = c.user_id 
+      JOIN account a on a.id = c.account_id 
       WHERE c.code = ? and c.purpose = ?`,
       [code, `verification`]
     );
@@ -306,9 +321,9 @@ exports.verifyEmail = async (req, res) => {
     if (codeData[0].email !== email) {
       return res.status(400).json({ message: `Invalid code` });
     }
-    await connection.query(`UPDATE user SET verified = ? WHERE id = ?`, [
+    await connection.query(`UPDATE account SET verified = ? WHERE id = ?`, [
       true,
-      codeData[0].user_id,
+      codeData[0].account_id,
     ]);
     return res.status(200).json({ message: `Verification successful` });
   } catch (error) {
@@ -323,9 +338,9 @@ exports.verifyForgotPasswordCode = async (req, res) => {
   try {
     const { code, email } = req.body;
     const [codeData] = await connection.query(
-      `SELECT c.code, c.expires_at, u.id AS user_id, u.name, u.email, u.avatar, u.method, u.role
+      `SELECT c.code, c.expires_at, a.id AS account_id, a.name, a.email, a.avatar, a.method, a.role
        FROM codes c
-       JOIN user u ON u.id = c.user_id
+       JOIN account a ON a.id = c.account_id
        WHERE c.code = ? AND c.purpose = 'reset_password'`,
       [code]
     );
@@ -339,7 +354,7 @@ exports.verifyForgotPasswordCode = async (req, res) => {
     }
 
     const token = jwt.sign(
-      { id: codeData[0].user_id, role: codeData[0].role },
+      { id: codeData[0].account_id, role: codeData[0].role },
       process.env.JWT_SECRET,
       {
         expiresIn: '10m',
@@ -362,7 +377,7 @@ exports.resetPassword = async (req, res) => {
   try {
     const { password } = req.body;
     const hashedPasssword = await bcrypt.hash(password, 10);
-    await connection.query('UPDATE user SET password = ? WHERE id = ?', [
+    await connection.query('UPDATE account SET password = ? WHERE id = ?', [
       hashedPasssword,
       req.user.id,
     ]);

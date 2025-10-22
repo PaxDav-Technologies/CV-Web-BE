@@ -1,6 +1,7 @@
-CREATE TABLE IF NOT EXISTS `user` (
+CREATE TABLE IF NOT EXISTS `account` (
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `name` VARCHAR(50) NOT NULL,
+  `firstname` VARCHAR(50) NOT NULL,
+  `lastname` VARCHAR(50) NOT NULL,
   `email` VARCHAR(30) NOT NULL,
   `password` VARCHAR(255) DEFAULT NULL,
   `verified` BOOLEAN DEFAULT FALSE,
@@ -10,14 +11,33 @@ CREATE TABLE IF NOT EXISTS `user` (
   INDEX `idx_email` (`email`)
 );
 
+CREATE TABLE IF NOT EXISTS `agents` (
+  `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+  `account_id` INT NOT NULL,
+  `professional_type` ENUM('real_estate_agent', 'property_manager', 'developer') DEFAULT 'real_estate_agent',
+  `experience_level` ENuM('beginner', 'intermediate', 'expert') DEFAULT 'beginner',
+  `phone_number` VARCHAR(20) NOT NULL,
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
+  INDEX `idx_account_id` (`account_id`)
+);
+
+CREATE TABLE IF NOT EXISTS `admins` (
+  `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+  `account_id` INT NOT NULL,
+  `phone_number` VARCHAR(20) NOT NULL,
+  `username` VARCHAR(50) NOT NULL,
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
+  INDEX `idx_account_id` (`account_id`)
+);
+
 CREATE TABLE IF NOT EXISTS `codes`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `code` VARCHAR(6) NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `expires_at` TIMESTAMP NOT NULL,
-  `user_id` INT NOT NULL,
+  `account_id` INT NOT NULL,
   `purpose` ENUM('verification', 'reset_password') DEFAULT 'verification',
-  FOREIGN KEY (`user_id`) REFERENCES `user`(`id`),
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
   INDEX `idx_code` (`code`)
 );
 
@@ -40,7 +60,7 @@ CREATE TABLE IF NOT EXISTS `apartment`(
   `details` LONGTEXT DEFAULT NULL,
   `draft` BOOLEAN DEFAULT FALSE,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`owner_id`) REFERENCES `user`(`id`),
+  FOREIGN KEY (`owner_id`) REFERENCES `account`(`id`),
   INDEX `idx_id` (`id`),
   INDEX `idx_owner_id` (`owner_id`),
   INDEX `idx_price_per_year` (`price_per_year`)
@@ -55,7 +75,9 @@ CREATE TABLE IF NOT EXISTS `resources`(
 CREATE TABLE IF NOT EXISTS `apartment_resources`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `apartment_id` INT NOT NULL,
-  `resource_id` INT NOT NULL
+  `resource_id` INT NOT NULL,
+  FOREIGN KEY (`apartment_id`) REFERENCES `apartment`(`id`),
+  FOREIGN KEY (`resource_id`) REFERENCES `resources`(`id`)
 );
 
 CREATE TABLE IF NOT EXISTS `coordinates`(
@@ -73,19 +95,25 @@ CREATE TABLE IF NOT EXISTS `amenities`(
 CREATE TABLE  IF NOT EXISTS `apartment_amenities`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `apartment_id` INT NOT NULL,
-  `amenity_id` INT NOT NULL
+  `amenity_id` INT NOT NULL,
+  FOREIGN KEY (`apartment_id`) REFERENCES `apartment`(`id`),
+  FOREIGN KEY (`amenity_id`) REFERENCES `amenities`(`id`)
 );
 
 CREATE TABLE IF NOT EXISTS `views`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `user_id` INT NOT NULL,
-  `apartment_id` INT NOT NULL
+  `account_id` INT NOT NULL,
+  `apartment_id` INT NOT NULL,
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
+  FOREIGN KEY (`apartment_id`) REFERENCES `apartment`(`id`)
 );
 
 CREATE TABLE IF NOT EXISTS `save`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `user_id` INT NOT NULL,
-  `apartment_id` INT NOT NULL
+  `account_id` INT NOT NULL,
+  `apartment_id` INT NOT NULL,
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
+  FOREIGN KEY (`apartment_id`) REFERENCES `apartment`(`id`)
 );
 
 CREATE TABLE IF NOT EXISTS `benefit`(
@@ -108,7 +136,7 @@ CREATE TABLE IF NOT EXISTS `nearby_landmarks`(
 CREATE TABLE IF NOT EXISTS `transactions`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `apartment_id` INT NOT NULL,
-  `user_id` INT NOT NULL,
+  `account_id` INT NOT NULL,
   `reference` VARCHAR(15) NOT NULL UNIQUE,
   `amount` DECIMAL(15, 2) NOT NULL,
   `currency` VARCHAR(10) NOT NULL,
@@ -116,9 +144,9 @@ CREATE TABLE IF NOT EXISTS `transactions`(
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`apartment_id`) REFERENCES `apartment`(`id`),
-  FOREIGN KEY (`user_id`) REFERENCES `user`(`id`),
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
   INDEX `idx_apartment_id` (`apartment_id`),
-  INDEX `idx_user_id` (`user_id`),
+  INDEX `idx_account_id` (`account_id`),
   INDEX `idx_reference` (`reference`)
 );
 
@@ -138,7 +166,7 @@ CREATE TABLE IF NOT EXISTS `blogs`(
   `category_id` INT DEFAULT NULL,
   `author_id` INT NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`author_id`) REFERENCES `user`(`id`),
+  FOREIGN KEY (`author_id`) REFERENCES `account`(`id`),
   INDEX `idx_author_id` (`author_id`),
   INDEX `idx_created_at` (`created_at`)
 );

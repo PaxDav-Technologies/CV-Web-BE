@@ -37,4 +37,3 @@ exports.authenticate = async (req, res, next) => {
   }
 };
 
-exports.authorizeRoles = async () => {};
