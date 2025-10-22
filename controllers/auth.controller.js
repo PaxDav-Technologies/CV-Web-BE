@@ -184,7 +184,7 @@ exports.register = async (req, res) => {
 
     const defaultImage = `https://imgs.search.brave.com/7JPVrX1-rrex4c53w-1YqddoSVInG8opEOsfUQYuBpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/dmVjdG9yc3RvY2su/Y29tL2kvNTAwcC83/MC8wMS9kZWZhdWx0/LW1hbGUtYXZhdGFy/LXByb2ZpbGUtaWNv/bi1ncmV5LXBob3Rv/LXZlY3Rvci0zMTgy/NzAwMS5qcGc`;
     const newUser = await connection.query(
-      'INSERT INTO account (firstname, lastname, email, password, method, role, avatar) VALUES (?, ?, ?, ?, ?, ?)',
+      'INSERT INTO account (firstname, lastname, email, password, method, role, avatar) VALUES (?, ?, ?, ?, ?, ?, ?)',
       [
         firstname,
         lastname,
@@ -246,7 +246,6 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: `Incorrect password` });
     }
 
-    console.log(user);
     if (!user[0].verified) {
       return res
         .status(401)
@@ -389,3 +388,19 @@ exports.resetPassword = async (req, res) => {
     if (connection) connection.release();
   }
 };
+
+exports.getLoggedInUser = async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [account] = await connection.query(
+      `SELECT id, firstname, lastname, email, avatar, role FROM account WHERE id = ?`,
+      [req.user.id]
+    );
+    return res.status(200).json({message: `Success`, data: account});
+  } catch(error) {
+    return res.status(500).json({message: `Internal Server Error`});
+  } finally {
+    if(connection) connection.release();
+  }
+}

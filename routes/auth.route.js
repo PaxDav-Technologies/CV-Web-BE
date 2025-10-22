@@ -7,6 +7,7 @@ const {
   verifyEmail,
   adminLogin,
   registerAdmin,
+  getLoggedInUser
 } = require('../controllers/auth.controller');
 const {
   authenticate,
@@ -52,5 +53,7 @@ router.post('/verify-email', verifyEmail);
 router.post('/forgot-password', forgotPassword);
 router.post('/verify-forgot-password', verifyForgotPasswordCode);
 router.post('/reset-password', authenticate, resetPassword);
+
+router.get('/me', authenticate, getLoggedInUser)
 
 module.exports = router;
