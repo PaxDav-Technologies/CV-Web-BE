@@ -56,10 +56,7 @@ exports.sendMail = async (data) => {
     const transporter = await initTransporter();
 
     const mailOptions = {
-      from:
-        data.from ||
-        process.env.EMAIL_FROM ||
-        `no-reply@${process.env.APP_DOMAIN || 'localhost'}`,
+      from: '"CV Properties" <support@cvproperties.co>',
       to: data.to,
       subject: data.subject,
       text: data.text || undefined,
