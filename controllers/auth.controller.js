@@ -29,7 +29,7 @@ exports.googleRegister = (req, res, next) => {
           )}`
         );
       }
-      await sendWelcomeEmail(user.email, user.firstName);
+      sendWelcomeEmail(user.email, user.firstName);
       return res.redirect(`${process.env.FRONTEND_URL}/auth/login`);
     }
   )(req, res, next);
@@ -108,11 +108,28 @@ exports.adminLogin = async (req, res) => {
 exports.registerAdmin = async (req, res) => {
   let connection;
   try {
-    const { firstname, lastname, email, password, avatar, phone_number, username } = req.body;
-    if (!firstname || !lastname || !email || !password || !phone_number || !username) {
+    const {
+      firstname,
+      lastname,
+      email,
+      password,
+      avatar,
+      phone_number,
+      username,
+    } = req.body;
+    if (
+      !firstname ||
+      !lastname ||
+      !email ||
+      !password ||
+      !phone_number ||
+      !username
+    ) {
       return res
         .status(400)
-        .json({ message: 'Firstname, Lastname, email, and password are required' });
+        .json({
+          message: 'Firstname, Lastname, email, and password are required',
+        });
     }
 
     connection = await pool.getConnection();
@@ -134,16 +151,15 @@ exports.registerAdmin = async (req, res) => {
       [firstname, lastname, email, hashedPassword, avatar, defaultMethod, role]
     );
 
-    await connection.query(`INSERT INTO admins (account_id, phone_number, username) VALUES (?, ?, ?)`, [
-      result[0].insertId,
-      phone_number,
-      username
-    ]);
+    await connection.query(
+      `INSERT INTO admins (account_id, phone_number, username) VALUES (?, ?, ?)`,
+      [result[0].insertId, phone_number, username]
+    );
 
     // Generate and send verification code
     const code = 1234;
     // const code = Math.floor(1000 + Math.random() * 9000); // 4-digit code
-    await sendVerificationCode(email, code);
+    sendVerificationCode(email, code);
 
     return res
       .status(201)
@@ -159,16 +175,26 @@ exports.registerAdmin = async (req, res) => {
 exports.register = async (req, res) => {
   const connection = await pool.getConnection();
   try {
-    const { email, password, firstname, lastname, isAgent=false } = req.body;
+    const { email, password, firstname, lastname, isAgent = false } = req.body;
     if (!email || !password) {
       return res
         .status(400)
-        .json({ message: 'Firstname, lastname, email and password are required' });
+        .json({
+          message: 'Firstname, lastname, email and password are required',
+        });
     }
 
-    if(isAgent) {
-      if(!req.body.phone_number || !req.body.professional_type || !req.body.experience_level) {
-        return res.status(400).json({message: `phone number, professional type and experience level are required`})
+    if (isAgent) {
+      if (
+        !req.body.phone_number ||
+        !req.body.professional_type ||
+        !req.body.experience_level
+      ) {
+        return res
+          .status(400)
+          .json({
+            message: `phone number, professional type and experience level are required`,
+          });
       }
     }
 
@@ -197,12 +223,15 @@ exports.register = async (req, res) => {
     );
 
     if (isAgent) {
-      await connection.query(`INSERT INTO agents (account_id, phone_number, professional_type, experience_level) VALUES (?, ?, ?, ?)`, [
-        newUser[0].insertId,
-        req.body.phone_number,
-        req.body.professional_type || 'real_estate_agent',
-        req.body.experience_level || 'beginner',
-      ]);
+      await connection.query(
+        `INSERT INTO agents (account_id, phone_number, professional_type, experience_level) VALUES (?, ?, ?, ?)`,
+        [
+          newUser[0].insertId,
+          req.body.phone_number,
+          req.body.professional_type || 'real_estate_agent',
+          req.body.experience_level || 'beginner',
+        ]
+      );
     }
 
     const code = 1234;
@@ -215,7 +244,7 @@ exports.register = async (req, res) => {
         new Date(Date.now() + 60 * 60 * 1000),
       ]
     );
-    await sendVerificationCode(req.body.email, code);
+    sendVerificationCode(req.body.email, code);
 
     return res
       .status(201)
@@ -291,7 +320,7 @@ exports.forgotPassword = async (req, res) => {
         new Date(Date.now() + 15 * 60 * 1000),
       ]
     );
-    await sendForgotPasswordCode(email, code);
+    sendForgotPasswordCode(email, code);
     return res
       .status(200)
       .json({ message: `A code has been sent to ${email}` });
@@ -327,6 +356,39 @@ exports.verifyEmail = async (req, res) => {
     return res.status(200).json({ message: `Verification successful` });
   } catch (error) {
     return res.status(500).json({ message: `Internal Server Error` });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+exports.resendVerificationCode = async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    const { email } = req.body;
+    const [user] = await connection.query(
+      'SELECT id, email, verified FROM account WHERE email = ?',
+      [email]
+    );
+    if (user.length === 0) {
+      return res
+        .status(400)
+        .json({ message: `Account with this email not found` });
+    }
+    if (user[0].verified) {
+      return res.status(400).json({ message: `Account is already verified` });
+    }
+    const code = 1234;
+    await connection.query(
+      `INSERT INTO codes (code, account_id, purpose, expires_at) VALUES (?, ?, ?, ?)`,
+      [code, user[0].id, 'verification', new Date(Date.now() + 60 * 60 * 1000)]
+    );
+    sendVerificationCode(email, code);
+    return res
+      .status(200)
+      .json({ message: `A new code has been sent to ${email}` });
+  } catch (error) {
+    console.log(error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
     if (connection) connection.release();
   }
@@ -397,10 +459,10 @@ exports.getLoggedInUser = async (req, res) => {
       `SELECT id, firstname, lastname, email, avatar, role FROM account WHERE id = ?`,
       [req.user.id]
     );
-    return res.status(200).json({message: `Success`, data: account});
-  } catch(error) {
-    return res.status(500).json({message: `Internal Server Error`});
+    return res.status(200).json({ message: `Success`, data: account });
+  } catch (error) {
+    return res.status(500).json({ message: `Internal Server Error` });
   } finally {
-    if(connection) connection.release();
+    if (connection) connection.release();
   }
-}
+};
