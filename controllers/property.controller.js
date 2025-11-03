@@ -101,7 +101,7 @@ exports.getApartmentById = async (req, res) => {
   }
 };
 
-exports.createApartment = async (req, res) => {
+exports.createProperty = async (req, res) => {
   let connection;
   try {
     const {
@@ -116,58 +116,116 @@ exports.createApartment = async (req, res) => {
       bedrooms,
       toilets,
       bathrooms,
+      type,
       parking_space,
       location,
       owner_id,
       details,
+      category,
+      land_size,
       draft = false,
     } = req.body;
 
-    // Basic required validation
-    if (!name || !address || !main_photo || !phone || !owner_id) {
-      return res
-        .status(400)
-        .json({
-          message:
-            'Missing required fields: name, address, main_photo, phone, owner_id',
-        });
+    if (
+      !name ||
+      !address ||
+      !type ||
+      !main_photo ||
+      !phone ||
+      !owner_id ||
+      !category
+    ) {
+      return res.status(400).json({
+        message:
+          'Missing required fields: name, category, address, main_photo, phone, owner_id',
+      });
+    }
+
+    if (type === 'land' && !land_size) {
+      return res.status(400).json({
+        message: 'Land size is required for land properties',
+      });
     }
 
     connection = await pool.getConnection();
-    const [result] = await connection.query(
-      `INSERT INTO apartment (name, address, total_price, price_per_year, agent_fee, service_charge, main_photo, phone, bedrooms, toilets, bathrooms, parking_space, location, owner_id, details, draft, created_at)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-      [
+
+    let query = `
+      INSERT INTO property (
+        name, address, type, category, total_price, price_per_year, 
+        agent_fee, service_charge, main_photo, phone, bedrooms, 
+        toilets, bathrooms, parking_space, location, owner_id, 
+        details, draft, created_at
+    `;
+
+    let values = [
+      name,
+      address,
+      type,
+      category,
+      total_price || 0,
+      price_per_year || 0,
+      agent_fee || 0,
+      service_charge || 0,
+      main_photo,
+      phone,
+      bedrooms || null,
+      toilets || null,
+      bathrooms || null,
+      parking_space || null,
+      location || null,
+      owner_id,
+      details || null,
+      draft ? 1 : 0,
+    ];
+
+    if (type === 'land' && land_size) {
+      query = `
+        INSERT INTO property (
+          name, address, type, category, total_price, price_per_year, 
+          agent_fee, service_charge, main_photo, phone, location, 
+          owner_id, details, draft, land_size, created_at
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+      `;
+
+      values = [
         name,
         address,
+        type,
+        category,
         total_price || 0,
         price_per_year || 0,
         agent_fee || 0,
         service_charge || 0,
         main_photo,
         phone,
-        bedrooms || null,
-        toilets || null,
-        bathrooms || null,
-        parking_space || null,
         location || null,
         owner_id,
         details || null,
         draft ? 1 : 0,
-      ]
-    );
+        land_size,
+      ];
+    } else {
+      query += `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+    }
 
+    const [result] = await connection.query(query, values);
     const insertedId = result.insertId;
+
     const [rows] = await connection.query(
-      'SELECT * FROM apartment WHERE id = ?',
+      'SELECT * FROM property WHERE id = ?',
       [insertedId]
     );
-    return res
-      .status(201)
-      .json({ message: 'Apartment created', data: rows[0] });
+
+    return res.status(201).json({
+      message: 'Property created successfully',
+      data: rows[0],
+    });
   } catch (error) {
-    console.error('createApartment error:', error);
-    return res.status(500).json({ message: 'Internal Server Error' });
+    console.error('createProperty error:', error);
+    return res.status(500).json({
+      message: 'Internal Server Error',
+      error: process.env.NODE_ENV === 'development' ? error.message : undefined,
+    });
   } finally {
     if (connection) connection.release();
   }

@@ -41,7 +41,8 @@ CREATE TABLE IF NOT EXISTS `codes`(
   INDEX `idx_code` (`code`)
 );
 
-CREATE TABLE IF NOT EXISTS `apartment`(
+
+CREATE TABLE IF NOT EXISTS `property`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `name` VARCHAR(50) NOT NULL,
   `address` VARCHAR(255) NOT NULL,
@@ -49,13 +50,17 @@ CREATE TABLE IF NOT EXISTS `apartment`(
   `price_per_year` DECIMAL(15, 2) NOT NULL,
   `agent_fee` DECIMAL(15, 2) NOT NULL,
   `service_charge` DECIMAL(15, 2) NOT NULL,
+  `about` TEXT DEFAULT NULL,
   `main_photo` VARCHAR(200) NOT NULL,
   `phone` VARCHAR(20) NOT NULL,
   `bedrooms` INT(5) DEFAULT NULL,
   `toilets` INT(5) DEFAULT NULL,
   `bathrooms` INT(5) DEFAULT NULL,
   `parking_space` INT(5) DEFAULT NULL,
+  `land_size` DECIMAL(10,2) DEFAULT NULL,
   `location` VARCHAR(200) DEFAULT NULL,
+  `category` ENUM('sale', 'rent', 'shortlet') DEFAULT 'sale',
+  `type` ENUM('house', 'land', 'hostel') DEFAULT 'house',
   `owner_id` INT NOT NULL,
   `details` LONGTEXT DEFAULT NULL,
   `draft` BOOLEAN DEFAULT FALSE,
@@ -66,13 +71,7 @@ CREATE TABLE IF NOT EXISTS `apartment`(
   INDEX `idx_price_per_year` (`price_per_year`)
 );
 
-CREATE TABLE IF NOT EXISTS `resources`(
-  `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `name` VARCHAR(100) NOT NULL,
-  `url` VARCHAR(200) NOT NULL
-);
-
-CREATE TABLE IF NOT EXISTS `apartment_resources`(
+CREATE TABLE IF NOT EXISTS `property_resources`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `apartment_id` INT NOT NULL,
   `resource_id` INT NOT NULL,
