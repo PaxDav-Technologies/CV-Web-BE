@@ -1,6 +1,5 @@
 DROP TABLE IF EXISTS `codes`;
 DROP TABLE IF EXISTS `property_resources`;
-DROP TABLE IF EXISTS `coordinates`;
 DROP TABLE IF EXISTS `property_amenities`;
 DROP TABLE IF EXISTS `views`;
 DROP TABLE IF EXISTS `save`;
@@ -14,6 +13,7 @@ DROP TABLE IF EXISTS `blog_categories`;
 DROP TABLE IF EXISTS `categories`;
 DROP TABLE IF EXISTS `blogs`;
 DROP TABLE IF EXISTS `property`;
+DROP TABLE IF EXISTS `coordinates`;
 DROP TABLE IF EXISTS `agents`;
 DROP TABLE IF EXISTS `admins`;
 DROP TABLE IF EXISTS `account`;

@@ -111,35 +111,48 @@ exports.createProperty = async (req, res) => {
       agent_fee,
       service_charge,
       main_photo,
-      phone,
       bedrooms,
       toilets,
       bathrooms,
       type,
       parking_space,
-      location,
       owner_id,
-      details,
       category,
+      inspection_fee,
+      coordinates,
       land_size,
       amenities = [],
       property_resources = [], // Array of objects: {url: string, type: 'image'|'video'|'document'}
       draft = false,
     } = req.body;
-
+    
     if (
       !name ||
       !address ||
       !type ||
       !main_photo ||
-      !phone ||
       !owner_id ||
       !category
     ) {
       return res.status(400).json({
         message:
-          'Missing required fields: name, category, address, main_photo, phone, owner_id',
+        'Missing required fields: name, category, address, main_photo, owner_id',
       });
+    }
+    
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+
+    let coordinatesId = null;
+
+    if (coordinates) {
+      const [coordResult] = await connection.query(
+        'INSERT INTO coordinates (latitude, longitude) VALUES (?, ?)',
+        [coordinates.latitude, coordinates.longitude]
+      );
+
+      coordinatesId = coordResult.insertId;
+
     }
 
     if (type === 'land' && !land_size) {
@@ -148,15 +161,12 @@ exports.createProperty = async (req, res) => {
       });
     }
 
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-
     let query = `
       INSERT INTO property (
         name, address, type, category, total_price, price_per_year, 
-        agent_fee, service_charge, main_photo, phone, bedrooms, 
-        toilets, bathrooms, parking_space, location, owner_id, 
-        details, draft, created_at
+        agent_fee, service_charge, main_photo, bedrooms, 
+        toilets, bathrooms, parking_space, owner_id, 
+        draft, created_at, inspection_fee, coordinates_id
     `;
 
     let values = [
@@ -169,24 +179,23 @@ exports.createProperty = async (req, res) => {
       agent_fee || 0,
       service_charge || 0,
       main_photo,
-      phone,
       bedrooms || null,
       toilets || null,
       bathrooms || null,
       parking_space || null,
-      location || null,
       owner_id,
-      details || null,
       draft ? 1 : 0,
+      inspection_fee || 0,
+      coordinatesId
     ];
 
     if (type === 'land' && land_size) {
       query = `
         INSERT INTO property (
           name, address, type, category, total_price, price_per_year, 
-          agent_fee, service_charge, main_photo, phone, location, 
-          owner_id, details, draft, land_size, created_at
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())
+          agent_fee, service_charge, main_photo, 
+          owner_id, draft, land_size, created_at, inspection_fee, coordinates_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
       `;
 
       values = [
@@ -199,15 +208,14 @@ exports.createProperty = async (req, res) => {
         agent_fee || 0,
         service_charge || 0,
         main_photo,
-        phone,
-        location || null,
         owner_id,
-        details || null,
         draft ? 1 : 0,
         land_size,
+        inspection_fee || 0,
+        coordinatesId
       ];
     } else {
-      query += `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`;
+      query += `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`;
     }
 
     const [result] = await connection.query(query, values);
@@ -240,6 +248,7 @@ exports.createProperty = async (req, res) => {
       // Execute all resource queries
       await Promise.all(resourceQueries);
     }
+
 
     // Handle Amenities
     if (amenities && amenities.length > 0) {

@@ -48,32 +48,37 @@ CREATE TABLE IF NOT EXISTS `resources` (
   `uploaded_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
+CREATE TABLE IF NOT EXISTS `coordinates`(
+  `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+  `longitude` DOUBLE NOT NULL,
+  `latitude` DOUBLE NOT NULL
+);
 
 CREATE TABLE IF NOT EXISTS `property`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `name` VARCHAR(50) NOT NULL,
   `address` VARCHAR(255) NOT NULL,
   `total_price` DECIMAL(15, 2) NOT NULL,
-  `price_per_year` DECIMAL(15, 2) NOT NULL,
+  `price_per_year` DECIMAL(15, 2) DEFAULT 0,
   `agent_fee` DECIMAL(15, 2) NOT NULL,
   `service_charge` DECIMAL(15, 2) NOT NULL,
-  `about` TEXT DEFAULT NULL,
+  `inspection_fee` DECIMAL(15, 2) DEFAULT 0,
+  `about` LONGTEXT DEFAULT NULL,
   `main_photo` VARCHAR(200) NOT NULL,
-  `phone` VARCHAR(20) NOT NULL,
   `bedrooms` INT(5) DEFAULT NULL,
   `toilets` INT(5) DEFAULT NULL,
   `publicized` BOOLEAN DEFAULT FALSE,
   `bathrooms` INT(5) DEFAULT NULL,
   `parking_space` INT(5) DEFAULT NULL,
   `land_size` DECIMAL(10,2) DEFAULT NULL,
-  `location` VARCHAR(200) DEFAULT NULL,
+  `coordinates_id` INT NOT NULL,
   `category` ENUM('sale', 'rent', 'shortlet') DEFAULT 'sale',
   `type` ENUM('house', 'land', 'hostel') DEFAULT 'house',
   `owner_id` INT NOT NULL,
-  `details` LONGTEXT DEFAULT NULL,
   `draft` BOOLEAN DEFAULT FALSE,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   FOREIGN KEY (`owner_id`) REFERENCES `account`(`id`),
+  FOREIGN KEY (`coordinates_id`) REFERENCES `coordinates`(`id`),
   INDEX `idx_id` (`id`),
   INDEX `idx_owner_id` (`owner_id`),
   INDEX `idx_price_per_year` (`price_per_year`)
@@ -87,11 +92,6 @@ CREATE TABLE IF NOT EXISTS `property_resources`(
   FOREIGN KEY (`resource_id`) REFERENCES `resources`(`id`)
 );
 
-CREATE TABLE IF NOT EXISTS `coordinates`(
-  `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `longitude` DOUBLE NOT NULL,
-  `latitude` DOUBLE NOT NULL
-);
 
 CREATE TABLE IF NOT EXISTS `amenities`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
