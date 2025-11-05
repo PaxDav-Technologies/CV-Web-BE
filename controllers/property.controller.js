@@ -109,7 +109,6 @@ exports.createProperty = async (req, res) => {
       total_price,
       price_per_year,
       agent_fee,
-      service_charge,
       main_photo,
       bedrooms,
       toilets,
@@ -125,21 +124,16 @@ exports.createProperty = async (req, res) => {
       property_resources = [], // Array of objects: {url: string, type: 'image'|'video'|'document'}
       draft = false,
     } = req.body;
-    
-    if (
-      !name ||
-      !address ||
-      !type ||
-      !main_photo ||
-      !owner_id ||
-      !category
-    ) {
+
+    const service_charge = parseInt(price_per_year) * 0.05;
+
+    if (!name || !address || !type || !main_photo || !owner_id || !category) {
       return res.status(400).json({
         message:
-        'Missing required fields: name, category, address, main_photo, owner_id',
+          'Missing required fields: name, category, address, main_photo, owner_id',
       });
     }
-    
+
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
@@ -152,7 +146,6 @@ exports.createProperty = async (req, res) => {
       );
 
       coordinatesId = coordResult.insertId;
-
     }
 
     if (type === 'land' && !land_size) {
@@ -186,7 +179,7 @@ exports.createProperty = async (req, res) => {
       owner_id,
       draft ? 1 : 0,
       inspection_fee || 0,
-      coordinatesId
+      coordinatesId,
     ];
 
     if (type === 'land' && land_size) {
@@ -212,7 +205,7 @@ exports.createProperty = async (req, res) => {
         draft ? 1 : 0,
         land_size,
         inspection_fee || 0,
-        coordinatesId
+        coordinatesId,
       ];
     } else {
       query += `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`;
@@ -248,7 +241,6 @@ exports.createProperty = async (req, res) => {
       // Execute all resource queries
       await Promise.all(resourceQueries);
     }
-
 
     // Handle Amenities
     if (amenities && amenities.length > 0) {
