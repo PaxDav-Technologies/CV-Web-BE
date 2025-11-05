@@ -1,6 +1,6 @@
 const { pool } = require('../config/db');
 
-exports.getAllApartments = async (req, res) => {
+exports.getAllProperties = async (req, res) => {
   let connection;
   try {
     connection = await pool.getConnection();
@@ -52,7 +52,7 @@ exports.getAllApartments = async (req, res) => {
       params.push(`%${search}%`, `%${search}%`);
     }
 
-    let sql = 'SELECT * FROM apartment';
+    let sql = 'SELECT * FROM property';
     if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
 
     // Pagination
@@ -62,39 +62,38 @@ exports.getAllApartments = async (req, res) => {
     sql += ' LIMIT ? OFFSET ?';
     params.push(lim, offset);
 
-    const [allApartments] = await connection.query(sql, params);
-    return res.status(200).json({ message: 'Success', data: allApartments });
+    const [allProperties] = await connection.query(sql, params);
+    return res.status(200).json({ message: 'Success', data: allProperties });
   } catch (error) {
     // eslint-disable-next-line no-console
-    console.error('getAllApartments error:', error);
+    console.error('getAllProperties error:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
     if (connection) connection.release();
   }
 };
 
-exports.getApartmentById = async (req, res) => {
+exports.getPropertyById = async (req, res) => {
   let connection;
   try {
     const { id } = req.params;
     const parsedId = parseInt(id, 10);
     if (Number.isNaN(parsedId) || parsedId <= 0) {
-      return res.status(400).json({ message: 'Invalid apartment id' });
+      return res.status(400).json({ message: 'Invalid property id' });
     }
 
     connection = await pool.getConnection();
     const [rows] = await connection.query(
-      'SELECT * FROM apartment WHERE id = ?',
+      'SELECT * FROM property WHERE id = ?',
       [parsedId]
     );
     if (!rows || rows.length === 0) {
-      return res.status(404).json({ message: 'Apartment not found' });
+      return res.status(404).json({ message: 'Property not found' });
     }
 
-    // return single apartment object
     return res.status(200).json({ message: 'success', data: rows[0] });
   } catch (error) {
-    console.error(`Error getting apartment by ID: ${error}`);
+    console.error(`Error getting property by ID: ${error}`);
     return res.status(500).json({ message: `Internal Server Error` });
   } finally {
     if (connection) connection.release();
@@ -123,6 +122,8 @@ exports.createProperty = async (req, res) => {
       details,
       category,
       land_size,
+      amenities = [],
+      property_resources = [], // Array of objects: {url: string, type: 'image'|'video'|'document'}
       draft = false,
     } = req.body;
 
@@ -148,6 +149,7 @@ exports.createProperty = async (req, res) => {
     }
 
     connection = await pool.getConnection();
+    await connection.beginTransaction();
 
     let query = `
       INSERT INTO property (
@@ -211,16 +213,110 @@ exports.createProperty = async (req, res) => {
     const [result] = await connection.query(query, values);
     const insertedId = result.insertId;
 
-    const [rows] = await connection.query(
-      'SELECT * FROM property WHERE id = ?',
+    // Handle Property Resources (Images/Videos/Documents)
+    if (property_resources && property_resources.length > 0) {
+      const resourceQueries = [];
+
+      for (const resource of property_resources) {
+        if (resource.url && resource.type) {
+          // Insert into resources table
+          const [resourceResult] = await connection.query(
+            'INSERT INTO resources (url, type, uploaded_at) VALUES (?, ?, NOW())',
+            [resource.url, resource.type]
+          );
+
+          const resourceId = resourceResult.insertId;
+
+          // Insert into property_resources table
+          resourceQueries.push(
+            connection.query(
+              'INSERT INTO property_resources (property_id, resource_id) VALUES (?, ?)',
+              [insertedId, resourceId]
+            )
+          );
+        }
+      }
+
+      // Execute all resource queries
+      await Promise.all(resourceQueries);
+    }
+
+    // Handle Amenities
+    if (amenities && amenities.length > 0) {
+      // Validate that amenities exist in the amenities table
+      const placeholders = amenities.map(() => '?').join(',');
+      const [existingAmenities] = await connection.query(
+        `SELECT id FROM amenities WHERE id IN (${placeholders})`,
+        amenities
+      );
+
+      const existingAmenityIds = existingAmenities.map((amenity) => amenity.id);
+
+      // Insert valid amenities into property_amenities table
+      const amenityQueries = existingAmenityIds.map((amenityId) =>
+        connection.query(
+          'INSERT INTO property_amenities (property_id, amenity_id) VALUES (?, ?)',
+          [insertedId, amenityId]
+        )
+      );
+
+      await Promise.all(amenityQueries);
+    }
+
+    await connection.commit();
+
+    // Fetch complete property data with relationships
+    const [propertyRows] = await connection.query(
+      `SELECT p.*, 
+    GROUP_CONCAT(DISTINCT r.url) as resource_urls,
+    GROUP_CONCAT(DISTINCT r.type) as resource_types,
+    GROUP_CONCAT(DISTINCT am.id) as amenity_ids,
+    GROUP_CONCAT(DISTINCT am.name) as amenity_names
+  FROM property p
+  LEFT JOIN property_resources pr ON p.id = pr.property_id
+  LEFT JOIN resources r ON pr.resource_id = r.id
+  LEFT JOIN property_amenities pa ON p.id = pa.property_id
+  LEFT JOIN amenities am ON pa.amenity_id = am.id
+  WHERE p.id = ?
+  GROUP BY p.id`,
       [insertedId]
     );
 
+    const property = propertyRows[0];
+
+    // Format the response
+    if (property) {
+      property.resources = property.resource_urls
+        ? property.resource_urls.split(',').map((url, index) => ({
+            url,
+            type: property.resource_types
+              ? property.resource_types.split(',')[index]
+              : 'image',
+          }))
+        : [];
+
+      property.amenities = property.amenity_ids
+        ? property.amenity_ids.split(',').map((id, index) => ({
+            id: parseInt(id),
+            name: property.amenity_names
+              ? property.amenity_names.split(',')[index]
+              : '',
+          }))
+        : [];
+
+      // Remove temporary fields
+      delete property.resource_urls;
+      delete property.resource_types;
+      delete property.amenity_ids;
+      delete property.amenity_names;
+    }
+
     return res.status(201).json({
       message: 'Property created successfully',
-      data: rows[0],
+      data: property,
     });
   } catch (error) {
+    if (connection) await connection.rollback();
     console.error('createProperty error:', error);
     return res.status(500).json({
       message: 'Internal Server Error',
@@ -231,13 +327,13 @@ exports.createProperty = async (req, res) => {
   }
 };
 
-exports.updateApartment = async (req, res) => {
+exports.updateProperty = async (req, res) => {
   let connection;
   try {
     const { id } = req.params;
     const parsedId = parseInt(id, 10);
     if (Number.isNaN(parsedId) || parsedId <= 0) {
-      return res.status(400).json({ message: 'Invalid apartment id' });
+      return res.status(400).json({ message: 'Invalid property id' });
     }
 
     const allowed = [
@@ -278,49 +374,89 @@ exports.updateApartment = async (req, res) => {
     connection = await pool.getConnection();
 
     params.push(parsedId);
-    const sql = `UPDATE apartment SET ${updates.join(', ')} WHERE id = ?`;
+    const sql = `UPDATE property SET ${updates.join(', ')} WHERE id = ?`;
     const [result] = await connection.query(sql, params);
 
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Apartment not found' });
+      return res.status(404).json({ message: 'Property not found' });
     }
 
     const [rows] = await connection.query(
-      'SELECT * FROM apartment WHERE id = ?',
+      'SELECT * FROM property WHERE id = ?',
       [parsedId]
     );
-    return res
-      .status(200)
-      .json({ message: 'Apartment updated', data: rows[0] });
+    return res.status(200).json({ message: 'Property updated', data: rows[0] });
   } catch (error) {
-    console.error('updateApartment error:', error);
+    console.error('updateProperty error:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
     if (connection) connection.release();
   }
 };
 
-exports.deleteApartment = async (req, res) => {
+exports.deleteProperty = async (req, res) => {
   let connection;
   try {
     const { id } = req.params;
     const parsedId = parseInt(id, 10);
     if (Number.isNaN(parsedId) || parsedId <= 0) {
-      return res.status(400).json({ message: 'Invalid apartment id' });
+      return res.status(400).json({ message: 'Invalid property id' });
     }
 
     connection = await pool.getConnection();
     const [result] = await connection.query(
-      'DELETE FROM apartment WHERE id = ?',
+      'DELETE FROM property WHERE id = ?',
       [parsedId]
     );
     if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Apartment not found' });
+      return res.status(404).json({ message: 'Property not found' });
     }
-    return res.status(200).json({ message: 'Apartment deleted' });
+    return res.status(200).json({ message: 'Property deleted' });
   } catch (error) {
-    console.error('deleteApartment error:', error);
+    console.error('deleteProperty error:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+exports.addAmenities = async (req, res) => {
+  let connection;
+  let amenities = [
+    'Kitchen',
+    'Laundry area',
+    'Dinning area',
+    'Terrace',
+    'Fenced compound',
+    'Car Park / Garage',
+    'Home Garden',
+    'CCTV Surveillance',
+    'Swimming Pool',
+    'Gym',
+    'Intercom System',
+    'Smart House System',
+    '24/7 Electricity',
+    'Bar',
+    'Elevator/lift',
+    'Waste Disposal Service',
+    'Wifi Ready',
+    'Private Lounge',
+    'Home Cinema',
+    'Walk in closet',
+    'Office/Study room',
+  ];
+  try {
+    connection = await pool.getConnection();
+    for (let amenity of amenities) {
+      await connection.query(
+        `INSERT INTO amenities (name) VALUES (?)`,
+        amenity
+      );
+    }
+    return res.status(201).json({ message: `success` });
+  } catch (error) {
+    console.log(`Error adding amenities: ${error}`);
+    return res.status(500).json({ message: `Internal Server Error` });
   } finally {
     if (connection) connection.release();
   }

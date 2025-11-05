@@ -29,6 +29,7 @@ app.get('/', (req, res) => {
 });
 
 app.use('/api/auth', authRouter);
+app.use('/api/property', require('./routes/property.route'))
 
 app.listen(PORT, async () => {
   await testConnection();

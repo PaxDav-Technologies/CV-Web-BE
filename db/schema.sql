@@ -41,6 +41,13 @@ CREATE TABLE IF NOT EXISTS `codes`(
   INDEX `idx_code` (`code`)
 );
 
+CREATE TABLE IF NOT EXISTS `resources` (
+  `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+  `url` VARCHAR(255) NOT NULL,
+  `type` ENUM('image', 'video', 'document') DEFAULT 'image',
+  `uploaded_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+
 
 CREATE TABLE IF NOT EXISTS `property`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
@@ -55,6 +62,7 @@ CREATE TABLE IF NOT EXISTS `property`(
   `phone` VARCHAR(20) NOT NULL,
   `bedrooms` INT(5) DEFAULT NULL,
   `toilets` INT(5) DEFAULT NULL,
+  `publicized` BOOLEAN DEFAULT FALSE,
   `bathrooms` INT(5) DEFAULT NULL,
   `parking_space` INT(5) DEFAULT NULL,
   `land_size` DECIMAL(10,2) DEFAULT NULL,
@@ -73,9 +81,9 @@ CREATE TABLE IF NOT EXISTS `property`(
 
 CREATE TABLE IF NOT EXISTS `property_resources`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `apartment_id` INT NOT NULL,
+  `property_id` INT NOT NULL,
   `resource_id` INT NOT NULL,
-  FOREIGN KEY (`apartment_id`) REFERENCES `apartment`(`id`),
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`),
   FOREIGN KEY (`resource_id`) REFERENCES `resources`(`id`)
 );
 
@@ -88,31 +96,31 @@ CREATE TABLE IF NOT EXISTS `coordinates`(
 CREATE TABLE IF NOT EXISTS `amenities`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `name` VARCHAR(50) NOT NULL,
-  `avatar` VARCHAR(200) NOT NULL
+  `avatar` VARCHAR(200) NULL
 );
 
-CREATE TABLE  IF NOT EXISTS `apartment_amenities`(
+CREATE TABLE  IF NOT EXISTS `property_amenities`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `apartment_id` INT NOT NULL,
+  `property_id` INT NOT NULL,
   `amenity_id` INT NOT NULL,
-  FOREIGN KEY (`apartment_id`) REFERENCES `apartment`(`id`),
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`),
   FOREIGN KEY (`amenity_id`) REFERENCES `amenities`(`id`)
 );
 
 CREATE TABLE IF NOT EXISTS `views`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `account_id` INT NOT NULL,
-  `apartment_id` INT NOT NULL,
+  `property_id` INT NOT NULL,
   FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
-  FOREIGN KEY (`apartment_id`) REFERENCES `apartment`(`id`)
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`)
 );
 
 CREATE TABLE IF NOT EXISTS `save`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `account_id` INT NOT NULL,
-  `apartment_id` INT NOT NULL,
+  `property_id` INT NOT NULL,
   FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
-  FOREIGN KEY (`apartment_id`) REFERENCES `apartment`(`id`)
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`)
 );
 
 CREATE TABLE IF NOT EXISTS `benefit`(
@@ -120,21 +128,21 @@ CREATE TABLE IF NOT EXISTS `benefit`(
   `name` VARCHAR(200) NOT NULL
 );
 
-CREATE TABLE IF NOT EXISTS `apartment_benefit`(
+CREATE TABLE IF NOT EXISTS `property_benefit`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `apartment_id` INT NOT NULL,
+  `property_id` INT NOT NULL,
   `benefit_id` INT NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS `nearby_landmarks`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `apartment_id` INT NOT NULL,
+  `property_id` INT NOT NULL,
   `landmark` VARCHAR(255) NOT NULL
 );
 
 CREATE TABLE IF NOT EXISTS `transactions`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `apartment_id` INT NOT NULL,
+  `property_id` INT NOT NULL,
   `account_id` INT NOT NULL,
   `reference` VARCHAR(15) NOT NULL UNIQUE,
   `amount` DECIMAL(15, 2) NOT NULL,
@@ -142,9 +150,9 @@ CREATE TABLE IF NOT EXISTS `transactions`(
   `status` ENUM('pending', 'success', 'failed') DEFAULT 'pending',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-  FOREIGN KEY (`apartment_id`) REFERENCES `apartment`(`id`),
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`),
   FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
-  INDEX `idx_apartment_id` (`apartment_id`),
+  INDEX `idx_property_id` (`property_id`),
   INDEX `idx_account_id` (`account_id`),
   INDEX `idx_reference` (`reference`)
 );
