@@ -125,11 +125,9 @@ exports.registerAdmin = async (req, res) => {
       !phone_number ||
       !username
     ) {
-      return res
-        .status(400)
-        .json({
-          message: 'Firstname, Lastname, email, and password are required',
-        });
+      return res.status(400).json({
+        message: 'Firstname, Lastname, email, and password are required',
+      });
     }
 
     connection = await pool.getConnection();
@@ -177,11 +175,9 @@ exports.register = async (req, res) => {
   try {
     const { email, password, firstname, lastname, isAgent = false } = req.body;
     if (!email || !password) {
-      return res
-        .status(400)
-        .json({
-          message: 'Firstname, lastname, email and password are required',
-        });
+      return res.status(400).json({
+        message: 'Firstname, lastname, email and password are required',
+      });
     }
 
     if (isAgent) {
@@ -190,11 +186,9 @@ exports.register = async (req, res) => {
         !req.body.professional_type ||
         !req.body.experience_level
       ) {
-        return res
-          .status(400)
-          .json({
-            message: `phone number, professional type and experience level are required`,
-          });
+        return res.status(400).json({
+          message: `phone number, professional type and experience level are required`,
+        });
       }
     }
 
@@ -346,7 +340,14 @@ exports.verifyEmail = async (req, res) => {
     if (!codeData || codeData.length === 0) {
       return res.status(400).json({ message: `Invalid code` });
     }
-    if (codeData[0].email !== email) {
+    let valid = false;
+    for (let code of codeData) {
+      if (code.email === email) {
+        valid = true;
+        break;
+      }
+    }
+    if (!valid) {
       return res.status(400).json({ message: `Invalid code` });
     }
     await connection.query(`UPDATE account SET verified = ? WHERE id = ?`, [
@@ -355,6 +356,7 @@ exports.verifyEmail = async (req, res) => {
     ]);
     return res.status(200).json({ message: `Verification successful` });
   } catch (error) {
+    console.log(error);
     return res.status(500).json({ message: `Internal Server Error` });
   } finally {
     if (connection) connection.release();
