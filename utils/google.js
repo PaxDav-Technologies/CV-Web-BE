@@ -30,7 +30,7 @@ passport.use(
 
         if (!user) {
           [user] = await connection.query(
-            `INSERT INTO user name, email, method, avatar, role, verified`,
+            `INSERT INTO account VALUES (name, email, method, avatar, role, verified)`,
             [
               profile.name?.givenName,
               email,
