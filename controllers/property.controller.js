@@ -462,3 +462,18 @@ exports.addAmenities = async (req, res) => {
     if (connection) connection.release();
   }
 };
+
+
+exports.getAmenities = async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [rows] = await connection.query(`SELECT * FROM amenities`);
+    return res.status(200).json({ message: 'Success', data: rows });
+  } catch (error) {
+    console.log(`Error getting amenities: ${error}`);
+    return res.status(500).json({ message: `Internal Server Error` });
+  } finally {
+    if (connection) connection.release();
+  }
+};
