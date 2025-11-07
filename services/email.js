@@ -24,6 +24,9 @@ async function initTransporter() {
           user: SMTP_USER,
           pass: SMTP_PASS,
         },
+        tls: {
+          rejectUnauthorized: false,
+        },
       });
     }
 
