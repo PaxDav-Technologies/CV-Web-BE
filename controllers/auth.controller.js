@@ -341,19 +341,26 @@ exports.verifyEmail = async (req, res) => {
       return res.status(400).json({ message: `Invalid code` });
     }
     let valid = false;
+    let validCode;
     for (let code of codeData) {
       if (code.email === email) {
         valid = true;
+        validCode = code;
         break;
       }
     }
     if (!valid) {
       return res.status(400).json({ message: `Invalid code` });
     }
-    await connection.query(`UPDATE account SET verified = ? WHERE id = ?`, [
-      true,
-      codeData[0].account_id,
+    await Promise.all([
+      connection.query(`UPDATE account SET verified = ? WHERE id = ?`, [
+        true,
+        validCode.account_id,
+      ]),
+      connection.query(`DELETE FROM codes WHERE id = ?`, [validCode.id]),
     ]);
+
+    await connection.query(`DELETE FROM codes WHERE id = ?`, [validCode.id]);
     return res.status(200).json({ message: `Verification successful` });
   } catch (error) {
     console.log(error);
@@ -401,7 +408,7 @@ exports.verifyForgotPasswordCode = async (req, res) => {
   try {
     const { code, email } = req.body;
     const [codeData] = await connection.query(
-      `SELECT c.code, c.expires_at, a.id AS account_id, a.name, a.email, a.avatar, a.method, a.role
+      `SELECT c.code, c.expires_at, a.id AS account_id, a.firstname, a.lastname, a.email, a.avatar, a.method, a.role
        FROM codes c
        JOIN account a ON a.id = c.account_id
        WHERE c.code = ? AND c.purpose = 'reset_password'`,
@@ -411,24 +418,40 @@ exports.verifyForgotPasswordCode = async (req, res) => {
       return res.status(400).json({ message: `Invalid code` });
     }
 
-    const entry = codeData[0];
+    let valid = false;
+    let validCode;
+    for (let code of codeData) {
+      if (code.email === email) {
+        valid = true;
+        validCode = code;
+        break;
+      }
+    }
+    if (!valid) {
+      return res.status(400).json({ message: `Invalid code` });
+    }
+
+    const entry = validCode;
     if (entry.expires_at && new Date(entry.expires_at) < new Date()) {
       return res.status(400).json({ message: `Code has expired` });
     }
 
     const token = jwt.sign(
-      { id: codeData[0].account_id, role: codeData[0].role },
+      { id: entry.account_id, role: entry.role },
       process.env.JWT_SECRET,
       {
         expiresIn: '10m',
       }
     );
 
+    await connection.query(`DELETE FROM codes WHERE id = ?`, [validCode.id]);
+
     return res.status(200).json({
       message: `Code verified`,
       token,
     });
   } catch (error) {
+    console.log(error);
     return res.status(500).json({ message: `Internal Server Error` });
   } finally {
     if (connection) connection.release();

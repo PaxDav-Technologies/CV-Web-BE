@@ -6,7 +6,7 @@ const compression = require('compression');
 const helmet = require('helmet');
 const rateLimit = require('express-rate-limit');
 require('dotenv').config();
-const { testConnection } = require('./config/db');
+const { testConnection, pool } = require('./config/db');
 const authRouter = require('./routes/auth.route');
 
 const app = express();
@@ -30,6 +30,19 @@ app.get('/', (req, res) => {
 
 app.use('/api/auth', authRouter);
 app.use('/api/property', require('./routes/property.route'))
+app.use('/api/private', async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [rows] = await connection.query('SELECT * FROM account;');
+    res.json(rows);
+  } catch (error) {
+    console.error(error);
+    res.status(500).send('Internal Server Error');
+  } finally {
+    if (connection) connection.release();
+  }
+});
 
 app.listen(PORT, async () => {
   await testConnection();
