@@ -2,7 +2,7 @@ CREATE TABLE IF NOT EXISTS `account` (
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `firstname` VARCHAR(50) NOT NULL,
   `lastname` VARCHAR(50) NOT NULL,
-  `email` VARCHAR(30) NOT NULL,
+  `email` VARCHAR(50) NOT NULL,
   `password` VARCHAR(255) DEFAULT NULL,
   `verified` BOOLEAN DEFAULT FALSE,
   `avatar` VARCHAR(255) NOT NULL,
@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS `agents` (
   `account_id` INT NOT NULL,
   `professional_type` ENUM('real_estate_agent', 'property_manager', 'developer') DEFAULT 'real_estate_agent',
   `experience_level` ENuM('beginner', 'intermediate', 'expert') DEFAULT 'beginner',
-  `phone_number` VARCHAR(20) NOT NULL,
+  `phone_number` VARCHAR(30) NOT NULL,
   FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
   INDEX `idx_account_id` (`account_id`)
 );
@@ -24,7 +24,7 @@ CREATE TABLE IF NOT EXISTS `agents` (
 CREATE TABLE IF NOT EXISTS `admins` (
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `account_id` INT NOT NULL,
-  `phone_number` VARCHAR(20) NOT NULL,
+  `phone_number` VARCHAR(30) NOT NULL,
   `username` VARCHAR(50) NOT NULL,
   FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
   INDEX `idx_account_id` (`account_id`)

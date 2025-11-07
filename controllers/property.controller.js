@@ -463,7 +463,6 @@ exports.addAmenities = async (req, res) => {
   }
 };
 
-
 exports.getAmenities = async (req, res) => {
   let connection;
   try {
@@ -473,6 +472,32 @@ exports.getAmenities = async (req, res) => {
   } catch (error) {
     console.log(`Error getting amenities: ${error}`);
     return res.status(500).json({ message: `Internal Server Error` });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+exports.deleteProperty = async (req, res) => {
+  let connection;
+  try {
+    const { id } = req.params;
+    const parsedId = parseInt(id, 10);
+    if (Number.isNaN(parsedId) || parsedId <= 0) {
+      return res.status(400).json({ message: 'Invalid property id' });
+    }
+
+    connection = await pool.getConnection();
+    const [result] = await connection.query(
+      'DELETE FROM property WHERE id = ?',
+      [parsedId]
+    );
+    if (result.affectedRows === 0) {
+      return res.status(404).json({ message: 'Property not found' });
+    }
+    return res.status(200).json({ message: 'Property deleted' });
+  } catch (error) {
+    console.error('deleteProperty error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
     if (connection) connection.release();
   }

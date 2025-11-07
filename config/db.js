@@ -27,7 +27,7 @@ const testConnection = async () => {
     for (const stmt of statements) {
       await connection.query(stmt);
     }
-    console.log(`⏰ Current time from DB: ${rows[0].current_time}`);
+    console.log(`⏰ Current time from DB: ${rows[0].current_time} ✅`);
     await connection.release();
   } catch (err) {
     console.error(`❌ MySQL connection failed: ${err.message}`);
