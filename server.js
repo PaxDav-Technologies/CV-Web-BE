@@ -8,6 +8,13 @@ const rateLimit = require('express-rate-limit');
 require('dotenv').config();
 const { testConnection, pool } = require('./config/db');
 const authRouter = require('./routes/auth.route');
+const cloudinary = require('cloudinary').v2;
+
+cloudinary.config({
+  cloud_name: process.env.CLOUDINARY_CLOUD_NAME,
+  api_key: process.env.CLOUDINARY_API_KEY,
+  api_secret: process.env.CLOUDINARY_API_SECRET,
+});
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,6 +30,8 @@ app.use(compression());
 app.use(morgan('dev'));
 app.use(cors());
 app.use(bodyParser.json({ limit: '100mb', extended: true }));
+
+
 
 app.get('/', (req, res) => {
   res.send('API is running...');

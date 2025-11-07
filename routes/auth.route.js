@@ -8,7 +8,8 @@ const {
   adminLogin,
   registerAdmin,
   getLoggedInUser,
-  resendVerificationCode
+  resendVerificationCode,
+  uploadAvatar
 } = require('../controllers/auth.controller');
 const {
   authenticate,
@@ -17,6 +18,9 @@ const {
 const passport = require('passport');
 
 const router = require('express').Router();
+const multer = require('multer');
+
+const upload = multer({ storage: multer.memoryStorage() });
 
 // router.use(passport.initialize());
 
@@ -54,6 +58,7 @@ router.post('/resend-verification', resendVerificationCode);
 router.post('/forgot-password', forgotPassword);
 router.post('/verify-forgot-password', verifyForgotPasswordCode);
 router.post('/reset-password', authenticate, resetPassword);
+router.post('/upload-avatar', authenticate, upload.single('avatar'), uploadAvatar);
 
 router.get('/me', authenticate, getLoggedInUser)
 

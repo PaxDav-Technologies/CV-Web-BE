@@ -9,6 +9,7 @@ const {
   sendForgotPasswordCode,
 } = require('../utils/emails');
 const { userRoles } = require('../utils/enum');
+const { uploadFileToCloudinary } = require('../utils/fileUpload');
 
 exports.googleRegister = (req, res, next) => {
   passport.authenticate(
@@ -581,3 +582,27 @@ exports.getLoggedInUser = async (req, res) => {
   }
 };
 
+exports.uploadAvatar = async (req, res) => {
+  const connection = await pool.getConnection();
+  try {
+    if (!req.file) {
+      return res.status(400).json({ message: 'avatar not uploaded' });
+    }
+
+    const uploadUrl = await uploadFileToCloudinary(req.file, 'avatars');
+
+    await connection.query('UPDATE account SET avatar = ? WHERE id = ?', [
+      uploadUrl,
+      req.user.id,
+    ]);
+
+    return res
+      .status(200)
+      .json({ message: 'Avatar updated successfully', avatar: uploadUrl });
+  } catch (error) {
+    console.error(error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  } finally {
+    if (connection) connection.release();
+  }
+};

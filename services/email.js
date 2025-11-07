@@ -78,8 +78,7 @@ exports.sendMail = async (data) => {
 
     return info;
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error('Error sending email:', error);
-    throw error;
+    // throw error;
   }
 };
