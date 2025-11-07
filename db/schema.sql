@@ -61,7 +61,6 @@ CREATE TABLE IF NOT EXISTS `property`(
   `total_price` DECIMAL(15, 2) NOT NULL,
   `price_per_year` DECIMAL(15, 2) DEFAULT 0,
   `agent_fee` DECIMAL(15, 2) NOT NULL,
-  `service_charge` DECIMAL(15, 2) NOT NULL,
   `inspection_fee` DECIMAL(15, 2) DEFAULT 0,
   `about` LONGTEXT DEFAULT NULL,
   `main_photo` VARCHAR(200) NOT NULL,
@@ -142,11 +141,13 @@ CREATE TABLE IF NOT EXISTS `nearby_landmarks`(
 
 CREATE TABLE IF NOT EXISTS `transactions`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `property_id` INT NOT NULL,
+  `property_id` INT DEFAULT NULL,
   `account_id` INT NOT NULL,
   `reference` VARCHAR(15) NOT NULL UNIQUE,
+  `commission` DECIMAL(15, 2) DEFAULT 0,
   `amount` DECIMAL(15, 2) NOT NULL,
   `currency` VARCHAR(10) NOT NULL,
+  `type` ENUM('rent', 'sale', 'shortlet', 'inspection_fee', 'withdrawal', 'refund') DEFAULT 'sale',
   `status` ENUM('pending', 'success', 'failed') DEFAULT 'pending',
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,

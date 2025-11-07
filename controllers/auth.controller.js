@@ -273,9 +273,7 @@ exports.login = async (req, res) => {
       user[0].role === userRoles.ADMIN ||
       user[0].role === userRoles.SUPER_ADMIN
     ) {
-      return res
-        .status(403)
-        .json({ message: `Account not found` });
+      return res.status(403).json({ message: `Account not found` });
     }
 
     if (!user[0].verified) {
@@ -496,9 +494,38 @@ exports.getLoggedInUser = async (req, res) => {
   try {
     connection = await pool.getConnection();
     const [account] = await connection.query(
-      `SELECT id, firstname, lastname, email, avatar, role FROM account WHERE id = ?`,
+      `SELECT id, firstname, lastname, email, avatar, role 
+      FROM account WHERE id = ?`,
       [req.user.id]
     );
+    if (account[0].role == 'user') {
+      const [transactions] = await connection.query(
+        `SELECT t.id, t.property_id, t.reference, t.amount, t.currency, t.type, t.status, t.created_at,
+        p.name
+        FROM transactions t 
+        JOIN property p  ON p.id = t.property_id
+        WHERE t.account_id = ?`,
+        [account[0].id]
+      );
+      return res.status(200).json({ account, transactions });
+    } else if (account[0].role == 'agent') {
+      const [transactions] = await connection.query(
+        `SELECT t.id, t.property_id, t.commission, t.reference, t.amount AS listed_price, t.currency, t.type, t.status, t.created_at,
+        p.name, p.owner_id
+        FROM transactions t 
+        JOIN property p  ON p.id = t.property_id
+        WHERE p.owner_id = ?`,
+        [account[0].id]
+      );
+      if (transactions.length === 0) {
+        return res.status(200).json({ account, transactions });
+      }
+      for (let transaction of transactions) {
+        transaction.balance =
+          Number(transaction.amount) - Number(transaction.commission);
+      }
+      return res.status(200).json({ transactions });
+    }
     return res.status(200).json({ message: `Success`, data: account });
   } catch (error) {
     return res.status(500).json({ message: `Internal Server Error` });
