@@ -493,43 +493,91 @@ exports.getLoggedInUser = async (req, res) => {
   let connection;
   try {
     connection = await pool.getConnection();
+
     const [account] = await connection.query(
       `SELECT id, firstname, lastname, email, avatar, role 
-      FROM account WHERE id = ?`,
+       FROM account 
+       WHERE id = ?`,
       [req.user.id]
     );
-    if (account[0].role == 'user') {
-      const [transactions] = await connection.query(
-        `SELECT t.id, t.property_id, t.reference, t.amount, t.currency, t.type, t.status, t.created_at,
-        p.name
-        FROM transactions t 
-        JOIN property p  ON p.id = t.property_id
-        WHERE t.account_id = ?`,
-        [account[0].id]
-      );
-      return res.status(200).json({ account, transactions });
-    } else if (account[0].role == 'agent') {
-      const [transactions] = await connection.query(
-        `SELECT t.id, t.property_id, t.commission, t.reference, t.amount AS listed_price, t.currency, t.type, t.status, t.created_at,
-        p.name, p.owner_id
-        FROM transactions t 
-        JOIN property p  ON p.id = t.property_id
-        WHERE p.owner_id = ?`,
-        [account[0].id]
-      );
-      if (transactions.length === 0) {
-        return res.status(200).json({ account, transactions });
-      }
-      for (let transaction of transactions) {
-        transaction.balance =
-          Number(transaction.amount) - Number(transaction.commission);
-      }
-      return res.status(200).json({ transactions });
+
+    if (!account.length) {
+      return res.status(404).json({ message: 'Account not found' });
     }
-    return res.status(200).json({ message: `Success`, data: account });
+
+    const user = account[0];
+    let responseData = { account: user };
+
+    if (user.role === 'customer') {
+      const [transactions] = await connection.query(
+        `SELECT t.id, t.property_id, t.reference, t.amount, t.currency, 
+                t.type, t.status, t.created_at, p.name
+         FROM transactions t 
+         JOIN property p ON p.id = t.property_id
+         WHERE t.account_id = ?`,
+        [user.id]
+      );
+
+      const [savedProperties] = await connection.query(
+        `SELECT p.id, p.name, p.address, p.total_price, p.main_photo, p.category, p.type
+         FROM save s 
+         JOIN property p ON p.id = s.property_id
+         WHERE s.account_id = ?`,
+        [user.id]
+      );
+
+      const [activeBookings] = await connection.query(
+        `SELECT b.id, b.status, b.start_date, b.end_date, p.name, p.address, p.main_photo
+         FROM bookings b
+         JOIN property p ON p.id = b.property_id
+         WHERE b.account_id = ? AND b.status = 'active'`,
+        [user.id]
+      );
+
+      responseData = {
+        ...responseData,
+        transactions,
+        savedProperties,
+        activeBookings,
+      };
+    } else if (user.role === 'agent') {
+      const [transactions] = await connection.query(
+        `SELECT t.id, t.property_id, t.commission, t.reference, 
+                t.amount AS listed_price, t.currency, t.type, 
+                t.status, t.created_at, p.name, p.owner_id
+         FROM transactions t 
+         JOIN property p ON p.id = t.property_id
+         WHERE p.owner_id = ?`,
+        [user.id]
+      );
+
+      const availableBalance = transactions.reduce((sum, t) => {
+        const balance = Number(t.listed_price) - Number(t.commission);
+        t.balance = balance;
+        return sum + balance;
+      }, 0);
+
+      const [listedProperties] = await connection.query(
+        `SELECT id, name, address, total_price, main_photo, category, type, created_at, publicized
+         FROM property 
+         WHERE owner_id = ?`,
+        [user.id]
+      );
+
+      responseData = {
+        ...responseData,
+        transactions,
+        availableBalance,
+        listedProperties,
+      };
+    }
+
+    return res.status(200).json(responseData);
   } catch (error) {
-    return res.status(500).json({ message: `Internal Server Error` });
+    console.error(error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
     if (connection) connection.release();
   }
 };
+

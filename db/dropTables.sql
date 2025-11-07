@@ -12,6 +12,7 @@ DROP TABLE IF EXISTS `resources`;
 DROP TABLE IF EXISTS `blog_categories`;
 DROP TABLE IF EXISTS `categories`;
 DROP TABLE IF EXISTS `blogs`;
+DROP TABLE IF EXISTS `bookings`;
 DROP TABLE IF EXISTS `property`;
 DROP TABLE IF EXISTS `coordinates`;
 DROP TABLE IF EXISTS `agents`;

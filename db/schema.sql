@@ -139,6 +139,21 @@ CREATE TABLE IF NOT EXISTS `nearby_landmarks`(
   `landmark` VARCHAR(255) NOT NULL
 );
 
+CREATE TABLE IF NOT EXISTS `bookings` (
+  `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+  `account_id` INT NOT NULL,
+  `property_id` INT NOT NULL,
+  `status` ENUM('active', 'completed', 'cancelled') DEFAULT 'active',
+  `start_date` DATE DEFAULT NULL,
+  `end_date` DATE DEFAULT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`),
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`),
+  INDEX `idx_account_id` (`account_id`),
+  INDEX `idx_property_id` (`property_id`)
+);
+
+
 CREATE TABLE IF NOT EXISTS `transactions`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `property_id` INT DEFAULT NULL,
