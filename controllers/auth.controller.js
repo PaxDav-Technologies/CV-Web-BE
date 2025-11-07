@@ -269,6 +269,15 @@ exports.login = async (req, res) => {
       return res.status(400).json({ message: `Incorrect password` });
     }
 
+    if (
+      user[0].role === userRoles.ADMIN ||
+      user[0].role === userRoles.SUPER_ADMIN
+    ) {
+      return res
+        .status(403)
+        .json({ message: `Account not found` });
+    }
+
     if (!user[0].verified) {
       return res
         .status(401)
@@ -282,15 +291,13 @@ exports.login = async (req, res) => {
         expiresIn: '1d',
       }
     );
-    return res
-      .status(200)
-      .json({
-        message: 'Login successful',
-        token,
-        role: user[0].role,
-        firstname: user[0].firstname,
-        lastname: user[0].lastname,
-      });
+    return res.status(200).json({
+      message: 'Login successful',
+      token,
+      role: user[0].role,
+      firstname: user[0].firstname,
+      lastname: user[0].lastname,
+    });
   } catch (error) {
     console.log(error);
     return res.status(500).json({ message: 'Internal Server Error' });
