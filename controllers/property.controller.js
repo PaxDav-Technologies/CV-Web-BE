@@ -1,4 +1,5 @@
 const { pool } = require('../config/db');
+const { uploadDataURIToCloudinary } = require('../utils/fileUpload');
 
 exports.getAllProperties = async (req, res) => {
   let connection;
@@ -109,29 +110,42 @@ exports.createProperty = async (req, res) => {
       total_price,
       price_per_year,
       agent_fee,
-      main_photo,
       bedrooms,
       toilets,
       bathrooms,
       type,
       parking_space,
-      owner_id,
       category,
       inspection_fee,
       coordinates,
       land_size,
       amenities = [],
-      property_resources = [], // Array of objects: {url: string, type: 'image'|'video'|'document'}
+      images = [],
       draft = false,
     } = req.body;
 
-    const service_charge = parseInt(price_per_year) * 0.05;
+    const owner_id = req.user.id;
 
-    if (!name || !address || !type || !main_photo || !owner_id || !category) {
+    if (!name || !address || !type || !owner_id || !category) {
       return res.status(400).json({
         message:
           'Missing required fields: name, category, address, main_photo, owner_id',
       });
+    }
+
+    if(images.length == 0) {
+      return res.status(400).json({
+        message: 'At least one image is required for the property',
+      });
+    }
+
+    const imageUrls = [];
+    for (let image of images) {
+      let uploadedImage = await uploadDataURIToCloudinary(
+        image,
+        'property'
+      );
+      imageUrls.push(uploadedImage);
     }
 
     connection = await pool.getConnection();
@@ -157,7 +171,7 @@ exports.createProperty = async (req, res) => {
     let query = `
       INSERT INTO property (
         name, address, type, category, total_price, price_per_year, 
-        agent_fee, service_charge, main_photo, bedrooms, 
+        agent_fee, main_photo, bedrooms, 
         toilets, bathrooms, parking_space, owner_id, 
         draft, created_at, inspection_fee, coordinates_id
     `;
@@ -170,8 +184,7 @@ exports.createProperty = async (req, res) => {
       total_price || 0,
       price_per_year || 0,
       agent_fee || 0,
-      service_charge || 0,
-      main_photo,
+      imageUrls[0] || null,
       bedrooms || null,
       toilets || null,
       bathrooms || null,
@@ -186,9 +199,9 @@ exports.createProperty = async (req, res) => {
       query = `
         INSERT INTO property (
           name, address, type, category, total_price, price_per_year, 
-          agent_fee, service_charge, main_photo, 
+          agent_fee, main_photo, 
           owner_id, draft, land_size, created_at, inspection_fee, coordinates_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
       `;
 
       values = [
@@ -199,8 +212,7 @@ exports.createProperty = async (req, res) => {
         total_price || 0,
         price_per_year || 0,
         agent_fee || 0,
-        service_charge || 0,
-        main_photo,
+        imageUrls[0] || null,
         owner_id,
         draft ? 1 : 0,
         land_size,
@@ -208,7 +220,7 @@ exports.createProperty = async (req, res) => {
         coordinatesId,
       ];
     } else {
-      query += `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`;
+      query += `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`;
     }
 
     const [result] = await connection.query(query, values);
@@ -218,33 +230,26 @@ exports.createProperty = async (req, res) => {
     if (property_resources && property_resources.length > 0) {
       const resourceQueries = [];
 
-      for (const resource of property_resources) {
-        if (resource.url && resource.type) {
-          // Insert into resources table
-          const [resourceResult] = await connection.query(
-            'INSERT INTO resources (url, type, uploaded_at) VALUES (?, ?, NOW())',
-            [resource.url, resource.type]
-          );
+      for (const resource of imageUrls) {
+        const [resourceResult] = await connection.query(
+          'INSERT INTO resources (url, type, uploaded_at) VALUES (?, ?, NOW())',
+          [resource, 'image']
+        );
 
-          const resourceId = resourceResult.insertId;
+        const resourceId = resourceResult.insertId;
 
-          // Insert into property_resources table
-          resourceQueries.push(
-            connection.query(
-              'INSERT INTO property_resources (property_id, resource_id) VALUES (?, ?)',
-              [insertedId, resourceId]
-            )
-          );
-        }
+        resourceQueries.push(
+          connection.query(
+            'INSERT INTO property_resources (property_id, resource_id) VALUES (?, ?)',
+            [insertedId, resourceId]
+          )
+        );
       }
 
-      // Execute all resource queries
       await Promise.all(resourceQueries);
     }
 
-    // Handle Amenities
     if (amenities && amenities.length > 0) {
-      // Validate that amenities exist in the amenities table
       const placeholders = amenities.map(() => '?').join(',');
       const [existingAmenities] = await connection.query(
         `SELECT id FROM amenities WHERE id IN (${placeholders})`,
@@ -343,7 +348,6 @@ exports.updateProperty = async (req, res) => {
       'total_price',
       'price_per_year',
       'agent_fee',
-      'service_charge',
       'main_photo',
       'phone',
       'bedrooms',

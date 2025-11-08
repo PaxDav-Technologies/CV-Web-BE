@@ -14,3 +14,15 @@ exports.uploadFileToCloudinary = async (file, folder = 'avatars') => {
     throw new Error(`File upload failed: ${error.message}`);
   }
 };
+
+exports.uploadDataURIToCloudinary = async (dataURI, folder = 'property') => {
+  try {
+    const result = await cloudinary.uploader.upload(dataURI, {
+      folder,
+      resource_type: 'image',
+    });
+    return result.secure_url;
+  } catch (error) {
+    throw new Error(`File upload failed: ${error.message}`);
+  }
+}
