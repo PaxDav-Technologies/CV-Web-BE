@@ -126,10 +126,10 @@ exports.createProperty = async (req, res) => {
 
     const owner_id = req.user.id;
 
-    if (!name || !address || !type || !owner_id || !category) {
+    if (!name || !address || !type || !category) {
       return res.status(400).json({
         message:
-          'Missing required fields: name, category, address, main_photo, owner_id',
+          'Missing required fields: name, category, address'
       });
     }
 

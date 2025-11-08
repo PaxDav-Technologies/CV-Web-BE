@@ -31,15 +31,14 @@ app.use(morgan('dev'));
 app.use(cors());
 app.use(bodyParser.json({ limit: '100mb', extended: true }));
 
-
-
 app.get('/', (req, res) => {
   res.send('API is running...');
 });
 
 app.use('/api/auth', authRouter);
-app.use('/api/property', require('./routes/property.route'))
-app.use('/api/admin', require('./routes/admin.route'))
+app.use('/api/property', require('./routes/property.route'));
+app.use('/api/blog', require('./routes/blog.route'));
+app.use('/api/admin', require('./routes/admin.route'));
 app.use('/api/private', async (req, res) => {
   let connection;
   try {
