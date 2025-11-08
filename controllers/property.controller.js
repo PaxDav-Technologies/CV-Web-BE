@@ -6,7 +6,6 @@ exports.getAllProperties = async (req, res) => {
   try {
     connection = await pool.getConnection();
 
-    // Use query parameters for filters (optional)
     const {
       bedrooms,
       toilets,
@@ -35,7 +34,6 @@ exports.getAllProperties = async (req, res) => {
       params.push(parseInt(parking_space, 10));
     }
     if (draft !== undefined) {
-      // Accept 'true'|'1' as true
       const d = draft === 'true' || draft === '1' ? 1 : 0;
       conditions.push('draft = ?');
       params.push(d);
@@ -56,7 +54,6 @@ exports.getAllProperties = async (req, res) => {
     let sql = 'SELECT * FROM property';
     if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
 
-    // Pagination
     const lim = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 1000);
     const pg = Math.max(parseInt(page, 10) || 1, 1);
     const offset = (pg - 1) * lim;
@@ -66,7 +63,6 @@ exports.getAllProperties = async (req, res) => {
     const [allProperties] = await connection.query(sql, params);
     return res.status(200).json({ message: 'Success', data: allProperties });
   } catch (error) {
-    // eslint-disable-next-line no-console
     console.error('getAllProperties error:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
@@ -84,10 +80,49 @@ exports.getPropertyById = async (req, res) => {
     }
 
     connection = await pool.getConnection();
+
     const [rows] = await connection.query(
-      'SELECT * FROM property WHERE id = ?',
+      `
+      SELECT 
+        p.id,
+        p.name,
+        p.address,
+        p.total_price,
+        p.price_per_year,
+        p.agent_fee,
+        p.inspection_fee,
+        p.about,
+        p.main_photo,
+        p.bedrooms,
+        p.toilets,
+        p.bathrooms,
+        p.parking_space,
+        p.land_size,
+        p.category,
+        p.type,
+        p.draft,
+        p.created_at,
+        a.firstname AS owner_firstname,
+        a.lastname AS owner_lastname,
+        a.avatar AS owner_avatar,
+        c.longitude,
+        c.latitude,
+        JSON_ARRAYAGG(r.url) AS resources
+      FROM property p
+      LEFT JOIN account a ON p.owner_id = a.id
+      LEFT JOIN coordinates c ON p.coordinates_id = c.id
+      LEFT JOIN property_resources pr ON p.id = pr.property_id
+      LEFT JOIN resources r ON pr.resource_id = r.id
+      WHERE p.id = ?
+      GROUP BY 
+        p.id, p.name, p.address, p.total_price, p.price_per_year, p.agent_fee, 
+        p.inspection_fee, p.about, p.main_photo, p.bedrooms, p.toilets, p.bathrooms, 
+        p.parking_space, p.land_size, p.category, p.type, p.draft, p.created_at, 
+        a.firstname, a.lastname, a.avatar, c.longitude, c.latitude
+      `,
       [parsedId]
     );
+
     if (!rows || rows.length === 0) {
       return res.status(404).json({ message: 'Property not found' });
     }
@@ -95,11 +130,12 @@ exports.getPropertyById = async (req, res) => {
     return res.status(200).json({ message: 'success', data: rows[0] });
   } catch (error) {
     console.error(`Error getting property by ID: ${error}`);
-    return res.status(500).json({ message: `Internal Server Error` });
+    return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
     if (connection) connection.release();
   }
 };
+
 
 exports.createProperty = async (req, res) => {
   let connection;

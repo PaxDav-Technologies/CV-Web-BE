@@ -343,7 +343,7 @@ exports.verifyEmail = async (req, res) => {
     const [codeData] = await connection.query(
       `SELECT c.code, c.account_id, c.created_at, c.expires_at, a.email, a.role 
       FROM codes c 
-      JOIN account a on a.id = c.account_id 
+      JOIN account a ON a.id = c.account_id 
       WHERE c.code = ? and c.purpose = ?`,
       [code, `verification`]
     );

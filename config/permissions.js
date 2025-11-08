@@ -1,4 +1,4 @@
-exports.PERMISSIONS = {
+const PERMISSIONS = {
   CREATE_ADMIN: 'create:admin',
   DELETE_ANY_ADMIN: 'delete:any:admin',
   UPDATE_ANY_ADMIN: 'update:any:admin',
@@ -21,9 +21,9 @@ exports.PERMISSIONS = {
   UPDATE_OWN_BLOG: 'update:own:blog',
   UPDATE_ANY_BLOG: 'update:any:blog',
   VIEW_BLOG: 'view:blog',
-}
+};
 
-exports.ROLES = {
+const ROLES = {
   super_admin: [
     PERMISSIONS.DELETE_ANY_ACCOUNT,
     PERMISSIONS.UPDATE_ANY_ACCOUNT,
@@ -57,7 +57,6 @@ exports.ROLES = {
     PERMISSIONS.VIEW_BLOG,
     PERMISSIONS.DELETE_OWN_ACCOUNT,
     PERMISSIONS.UPDATE_OWN_ACCOUNT,
-
   ],
   agent: [
     PERMISSIONS.VIEW_PROPERTY,
@@ -68,4 +67,6 @@ exports.ROLES = {
     PERMISSIONS.DELETE_OWN_PROPERTY,
     PERMISSIONS.UPDATE_OWN_PROPERTY,
   ],
-}
+};
+
+module.exports = { PERMISSIONS, ROLES };

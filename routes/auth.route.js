@@ -19,6 +19,7 @@ const passport = require('passport');
 
 const router = require('express').Router();
 const multer = require('multer');
+const { ROLES } = require('../config/permissions');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
@@ -49,7 +50,7 @@ router.post(
   '/admin/register',
   upload.single('avatar'),
   authenticate,
-  authorizeRoles('admin'),
+  authorizeRoles(ROLES.admin, ROLES.super_admin),
   registerAdmin
 );
 router.post('/admin/login', adminLogin);
