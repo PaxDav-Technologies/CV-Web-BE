@@ -109,15 +109,8 @@ exports.adminLogin = async (req, res) => {
 exports.registerAdmin = async (req, res) => {
   let connection;
   try {
-    const {
-      firstname,
-      lastname,
-      email,
-      password,
-      avatar,
-      phone_number,
-      username,
-    } = req.body;
+    const { firstname, lastname, email, password, phone_number, username } =
+      req.body;
     if (
       !firstname ||
       !lastname ||
@@ -143,7 +136,10 @@ exports.registerAdmin = async (req, res) => {
 
     const hashedPassword = await bcrypt.hash(password, 10);
     const defaultMethod = 'password';
-    // const avatar = `https://imgs.search.brave.com/7JPVrX1-rrex4c53w-1YqddoSVInG8opEOsfUQYuBpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/dmVjdG9yc3RvY2su/Y29tL2kvNTAwcC83/MC8wMS9kZWZhdWx0/LW1hbGUtYXZhdGFy/LXByb2ZpbGUtaWNv/bi1ncmV5LXBob3Rv/LXZlY3Rvci0zMTgy/NzAwMS5qcGc`;
+    let avatar;
+    if (req.file) {
+      avatar = await uploadFileToCloudinary(req.file, 'avatars');
+    }
     const role = 'admin';
     const result = await connection.query(
       'INSERT INTO account (firstname, lastname, email, password, avatar, method, role) VALUES (?, ?, ?, ?, ?, ?, ?)',

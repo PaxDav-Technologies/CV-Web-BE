@@ -47,6 +47,7 @@ const upload = multer({ storage: multer.memoryStorage() });
 router.post('/register', register);
 router.post(
   '/admin/register',
+  upload.single('avatar'),
   authenticate,
   authorizeRoles('admin'),
   registerAdmin

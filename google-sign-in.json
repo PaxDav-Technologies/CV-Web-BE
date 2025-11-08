@@ -1,0 +1,20 @@
+{
+  "web": {
+    "client_id": "57128806319-kb5efrh3k5023abvi4qq43mphef1gaq3.apps.googleusercontent.com",
+    "project_id": "exalted-cairn-475913-m3",
+    "auth_uri": "https://accounts.google.com/o/oauth2/auth",
+    "token_uri": "https://oauth2.googleapis.com/token",
+    "auth_provider_x509_cert_url": "https://www.googleapis.com/oauth2/v1/certs",
+    "client_secret": "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",
+    "redirect_uris": [
+      "http://localhost:3000/auth/redirect/",
+      "https://cv-web-be.onrender.com/auth/callback",
+      "https://cv-web-fe.vercel.app/auth/redirect/"
+    ],
+    "javascript_origins": [
+      "http://localhost:3000",
+      "https://cv-web-fe.vercel.app",
+      "https://cv-web-be.onrender.com"
+    ]
+  }
+}
