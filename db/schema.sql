@@ -190,6 +190,7 @@ CREATE TABLE IF NOT EXISTS `blogs`(
   `category_id` INT DEFAULT NULL,
   `author_id` INT NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `draft` BOOLEAN DEFAULT FALSE,
   FOREIGN KEY (`author_id`) REFERENCES `account`(`id`),
   INDEX `idx_author_id` (`author_id`),
   INDEX `idx_created_at` (`created_at`)

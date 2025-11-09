@@ -62,6 +62,56 @@ exports.authenticate = async (req, res, next) => {
   }
 };
 
+exports.optionalAuth = async (req, res, next) => {
+  let connection;
+  try {
+    const authHeader = req.headers.authorization;
+
+    if (!authHeader) {
+      req.user = null;
+      return next();
+    }
+
+    const token = authHeader.split(' ')[1];
+    if (!token) {
+      req.user = null;
+      return next();
+    }
+
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+    if (!decoded) {
+      req.user = null;
+      return next();
+    }
+
+    connection = await pool.getConnection();
+    const [rows] = await connection.query(
+      `SELECT id, role, verified FROM account WHERE id = ?`,
+      [decoded.id]
+    );
+
+    if (rows.length === 0) {
+      req.user = null;
+      return next();
+    }
+
+    req.user = {
+      id: decoded.id,
+      role: rows[0].role,
+      verified: rows[0].verified,
+    };
+
+    next();
+  } catch (error) {
+    console.error(`An error occurred in optionalAuth middleware: ${error}`);
+    req.user = null;
+    next();
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+
 exports.authorizePermissions = (permission, options = {}) => {
   // options = {checkOwnership: true, resourceParam: 'blogId', resourceType: 'blogs'}
   return async (req, res, next) => {

@@ -21,6 +21,7 @@ exports.getAllProperties = async (req, res) => {
     const conditions = [];
     const params = [];
 
+    // --- Filters ---
     if (bedrooms !== undefined) {
       conditions.push('bedrooms = ?');
       params.push(parseInt(bedrooms, 10));
@@ -51,6 +52,20 @@ exports.getAllProperties = async (req, res) => {
       params.push(`%${search}%`, `%${search}%`);
     }
 
+    // --- Publicised Filter Logic ---
+    const user = req.user || null;
+
+    if (!user) {
+      // no user => show only publicized properties
+      conditions.push('publicized = TRUE');
+    } else if (user.role !== 'admin') {
+      // non-admin user => show their own properties + publicized ones
+      conditions.push('(publicized = TRUE OR owner_id = ?)');
+      params.push(user.id);
+    }
+    // admin sees everything (no filter)
+
+    // --- Pagination ---
     let sql = 'SELECT * FROM property';
     if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
 
@@ -60,8 +75,13 @@ exports.getAllProperties = async (req, res) => {
     sql += ' LIMIT ? OFFSET ?';
     params.push(lim, offset);
 
+    // --- Execute Query ---
     const [allProperties] = await connection.query(sql, params);
-    return res.status(200).json({ message: 'Success', data: allProperties });
+
+    return res.status(200).json({
+      message: 'Success',
+      data: allProperties,
+    });
   } catch (error) {
     console.error('getAllProperties error:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
@@ -69,6 +89,7 @@ exports.getAllProperties = async (req, res) => {
     if (connection) connection.release();
   }
 };
+
 
 exports.getPropertyById = async (req, res) => {
   let connection;
@@ -161,26 +182,23 @@ exports.createProperty = async (req, res) => {
     } = req.body;
 
     const owner_id = req.user.id;
+    const role = req.user.role;
 
     if (!name || !address || !type || !category) {
       return res.status(400).json({
-        message:
-          'Missing required fields: name, category, address'
+        message: 'Missing required fields: name, category, address',
       });
     }
 
-    if(images.length == 0) {
+    if (images.length === 0) {
       return res.status(400).json({
         message: 'At least one image is required for the property',
       });
     }
 
     const imageUrls = [];
-    for (let image of images) {
-      let uploadedImage = await uploadDataURIToCloudinary(
-        image,
-        'property'
-      );
+    for (const image of images) {
+      const uploadedImage = await uploadDataURIToCloudinary(image, 'property');
       imageUrls.push(uploadedImage);
     }
 
@@ -194,7 +212,6 @@ exports.createProperty = async (req, res) => {
         'INSERT INTO coordinates (latitude, longitude) VALUES (?, ?)',
         [coordinates.latitude, coordinates.longitude]
       );
-
       coordinatesId = coordResult.insertId;
     }
 
@@ -204,12 +221,15 @@ exports.createProperty = async (req, res) => {
       });
     }
 
+    // 🟢 Determine if property should be publicized
+    const publicized = role === 'admin' || role === 'super_admin' ? 1 : 0;
+
     let query = `
       INSERT INTO property (
-        name, address, type, category, total_price, price_per_year, 
-        agent_fee, main_photo, bedrooms, 
-        toilets, bathrooms, parking_space, owner_id, 
-        draft, created_at, inspection_fee, coordinates_id
+        name, address, type, category, total_price, price_per_year,
+        agent_fee, main_photo, bedrooms, toilets, bathrooms, parking_space,
+        owner_id, draft, publicized, created_at, inspection_fee, coordinates_id
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
     `;
 
     let values = [
@@ -227,6 +247,7 @@ exports.createProperty = async (req, res) => {
       parking_space || null,
       owner_id,
       draft ? 1 : 0,
+      publicized,
       inspection_fee || 0,
       coordinatesId,
     ];
@@ -234,10 +255,10 @@ exports.createProperty = async (req, res) => {
     if (type === 'land' && land_size) {
       query = `
         INSERT INTO property (
-          name, address, type, category, total_price, price_per_year, 
-          agent_fee, main_photo, 
-          owner_id, draft, land_size, created_at, inspection_fee, coordinates_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+          name, address, type, category, total_price, price_per_year,
+          agent_fee, main_photo, owner_id, draft, publicized,
+          land_size, created_at, inspection_fee, coordinates_id
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
       `;
 
       values = [
@@ -251,19 +272,18 @@ exports.createProperty = async (req, res) => {
         imageUrls[0] || null,
         owner_id,
         draft ? 1 : 0,
+        publicized,
         land_size,
         inspection_fee || 0,
         coordinatesId,
       ];
-    } else {
-      query += `) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`;
     }
 
     const [result] = await connection.query(query, values);
     const insertedId = result.insertId;
 
-    // Handle Property Resources (Images/Videos/Documents)
-    if (property_resources && property_resources.length > 0) {
+    // Handle Property Resources
+    if (images && images.length > 0) {
       const resourceQueries = [];
 
       for (const resource of imageUrls) {
@@ -285,6 +305,7 @@ exports.createProperty = async (req, res) => {
       await Promise.all(resourceQueries);
     }
 
+    // Handle Amenities
     if (amenities && amenities.length > 0) {
       const placeholders = amenities.map(() => '?').join(',');
       const [existingAmenities] = await connection.query(
@@ -292,9 +313,8 @@ exports.createProperty = async (req, res) => {
         amenities
       );
 
-      const existingAmenityIds = existingAmenities.map((amenity) => amenity.id);
+      const existingAmenityIds = existingAmenities.map((a) => a.id);
 
-      // Insert valid amenities into property_amenities table
       const amenityQueries = existingAmenityIds.map((amenityId) =>
         connection.query(
           'INSERT INTO property_amenities (property_id, amenity_id) VALUES (?, ?)',
@@ -307,26 +327,25 @@ exports.createProperty = async (req, res) => {
 
     await connection.commit();
 
-    // Fetch complete property data with relationships
+    // Fetch full property data
     const [propertyRows] = await connection.query(
       `SELECT p.*, 
-    GROUP_CONCAT(DISTINCT r.url) as resource_urls,
-    GROUP_CONCAT(DISTINCT r.type) as resource_types,
-    GROUP_CONCAT(DISTINCT am.id) as amenity_ids,
-    GROUP_CONCAT(DISTINCT am.name) as amenity_names
-  FROM property p
-  LEFT JOIN property_resources pr ON p.id = pr.property_id
-  LEFT JOIN resources r ON pr.resource_id = r.id
-  LEFT JOIN property_amenities pa ON p.id = pa.property_id
-  LEFT JOIN amenities am ON pa.amenity_id = am.id
-  WHERE p.id = ?
-  GROUP BY p.id`,
+        GROUP_CONCAT(DISTINCT r.url) as resource_urls,
+        GROUP_CONCAT(DISTINCT r.type) as resource_types,
+        GROUP_CONCAT(DISTINCT am.id) as amenity_ids,
+        GROUP_CONCAT(DISTINCT am.name) as amenity_names
+      FROM property p
+      LEFT JOIN property_resources pr ON p.id = pr.property_id
+      LEFT JOIN resources r ON pr.resource_id = r.id
+      LEFT JOIN property_amenities pa ON p.id = pa.property_id
+      LEFT JOIN amenities am ON pa.amenity_id = am.id
+      WHERE p.id = ?
+      GROUP BY p.id`,
       [insertedId]
     );
 
     const property = propertyRows[0];
 
-    // Format the response
     if (property) {
       property.resources = property.resource_urls
         ? property.resource_urls.split(',').map((url, index) => ({
@@ -346,7 +365,6 @@ exports.createProperty = async (req, res) => {
           }))
         : [];
 
-      // Remove temporary fields
       delete property.resource_urls;
       delete property.resource_types;
       delete property.amenity_ids;
@@ -368,6 +386,7 @@ exports.createProperty = async (req, res) => {
     if (connection) connection.release();
   }
 };
+
 
 exports.updateProperty = async (req, res) => {
   let connection;

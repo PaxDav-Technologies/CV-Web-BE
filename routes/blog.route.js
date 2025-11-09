@@ -2,6 +2,7 @@ const router = require('express').Router();
 const {
   authenticate,
   authorizePermissions,
+  optionalAuth,
 } = require('../middlewares/auth.middleware');
 const {
   getAllBlogs,
@@ -12,8 +13,8 @@ const {
 } = require('../controllers/blog.controller');
 const { PERMISSIONS } = require('../config/permissions');
 
-router.get('/all', authenticate, getAllBlogs);
-router.get('/:blogId', authenticate, getBlogById);
+router.get('/all', optionalAuth, getAllBlogs);
+router.get('/:blogId', optionalAuth, getBlogById);
 router.post(
   '/create',
   authenticate,
@@ -28,7 +29,7 @@ router.patch(
     if ((_R[userRole] || []).includes(_P.UPDATE_ANY_BLOG)) {
       return updateBlog(req, res);
     }
-    return authorizePermissions(_P.tUPDATE_OWN_BLOG, {
+    return authorizePermissions(_P.UPDATE_OWN_BLOG, {
       checkOwnership: true,
       resourceParam: 'blogId',
       resource: 'blogs',

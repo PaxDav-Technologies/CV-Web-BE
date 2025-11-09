@@ -2,6 +2,7 @@ const { PERMISSIONS, ROLES } = require('../config/permissions');
 const {
   getAllCustomers,
   getAllAgents,
+  approveProperty,
 } = require('../controllers/admin.controller');
 const {
   authorizePermissions,
@@ -22,6 +23,13 @@ router.get(
   authenticate,
   authorizeRoles(ROLES.admin, ROLES.super_admin),
   getAllAgents
+);
+
+router.patch(
+  '/approve-property',
+  authenticate,
+  authorizeRoles(ROLES.admin, ROLES.super_admin),
+  approveProperty
 );
 
 module.exports = router;
