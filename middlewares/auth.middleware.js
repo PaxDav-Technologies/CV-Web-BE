@@ -2,6 +2,7 @@
 exports.authorizeRoles = (...roles) => {
   return (req, res, next) => {
     // Assumes req.user is set by authentication middleware
+    // console.log(req.user)
     if (!req.user || !roles.includes(req.user.role)) {
       return res
         .status(403)
@@ -12,7 +13,7 @@ exports.authorizeRoles = (...roles) => {
 };
 const jwt = require('jsonwebtoken');
 const { pool } = require('../config/db');
-const { PERMISSIONS } = require('../config/permissions');
+const { PERMISSIONS, ROLES } = require('../config/permissions');
 
 exports.authenticate = async (req, res, next) => {
   let connection;
@@ -122,7 +123,7 @@ exports.authorizePermissions = (permission, options = {}) => {
         return res.status(401).json({ message: `Unauthorized` });
       }
 
-      const rolePermissions = PERMISSIONS[userRole] || [];
+      const rolePermissions = ROLES[userRole] || [];
       if (!rolePermissions.includes(permission)) {
         return res
           .status(403)

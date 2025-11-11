@@ -6,6 +6,7 @@ require('dotenv').config();
 const NUM_CUSTOMERS = 10;
 const NUM_AGENTS = 5;
 const NUM_ADMINS = 2;
+const NUM_SUPER_ADMINS = 1;
 const NUM_PROPERTIES = 20;
 const NUM_TRANSACTIONS = 30;
 const NUM_BOOKINGS = 10;
@@ -53,6 +54,23 @@ const NUM_BLOGS = 10;
     );
     return result.insertId;
   };
+
+
+  //Super admins
+  for (let i = 0; i < NUM_SUPER_ADMINS; i++) {
+    const id = await insertAccount(
+      faker.person.firstName(),
+      faker.person.lastName(),
+      faker.internet.email(),
+      'super_admin'
+    );
+    await pool.query(
+      `INSERT INTO admins (account_id, phone_number, username)
+       VALUES (?, ?, ?)`,
+      [id, faker.phone.number(), faker.internet.userName()]
+    );
+    accounts.push({ id, role: 'super_admin' });
+  }
 
   // Admins
   for (let i = 0; i < NUM_ADMINS; i++) {

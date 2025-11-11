@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS `property`(
   `land_size` DECIMAL(10,2) DEFAULT NULL,
   `coordinates_id` INT NOT NULL,
   `category` ENUM('sale', 'rent', 'shortlet') DEFAULT 'sale',
-  `type` ENUM('house', 'land', 'hostel') DEFAULT 'house',
+  `type` ENUM('house', 'apartment', 'land', 'hostel') DEFAULT 'house',
   `owner_id` INT NOT NULL,
   `draft` BOOLEAN DEFAULT FALSE,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,

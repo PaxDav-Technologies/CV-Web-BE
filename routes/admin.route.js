@@ -15,20 +15,20 @@ const router = require('express').Router();
 router.get(
   '/customers',
   authenticate,
-  authorizeRoles(ROLES.admin, ROLES.super_admin),
+  authorizeRoles('admin', 'super_admin'),
   getAllCustomers
 );
 router.get(
   '/agents',
   authenticate,
-  authorizeRoles(ROLES.admin, ROLES.super_admin),
+  authorizeRoles('admin', 'super_admin'),
   getAllAgents
 );
 
 router.patch(
   '/approve-property',
   authenticate,
-  authorizeRoles(ROLES.admin, ROLES.super_admin),
+  authorizeRoles('admin', 'super_admin'),
   approveProperty
 );
 

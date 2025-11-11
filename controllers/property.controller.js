@@ -56,14 +56,11 @@ exports.getAllProperties = async (req, res) => {
     const user = req.user || null;
 
     if (!user) {
-      // no user => show only publicized properties
       conditions.push('publicized = TRUE');
-    } else if (user.role !== 'admin') {
-      // non-admin user => show their own properties + publicized ones
+    } else if (user.role !== 'admin' && user.role !== 'super_admin') {
       conditions.push('(publicized = TRUE OR owner_id = ?)');
       params.push(user.id);
     }
-    // admin sees everything (no filter)
 
     // --- Pagination ---
     let sql = 'SELECT * FROM property';
@@ -164,6 +161,7 @@ exports.createProperty = async (req, res) => {
     const {
       name,
       address,
+      about,
       total_price,
       price_per_year,
       agent_fee,
@@ -226,7 +224,7 @@ exports.createProperty = async (req, res) => {
 
     let query = `
       INSERT INTO property (
-        name, address, type, category, total_price, price_per_year,
+        name, address, about, type, category, total_price, price_per_year,
         agent_fee, main_photo, bedrooms, toilets, bathrooms, parking_space,
         owner_id, draft, publicized, created_at, inspection_fee, coordinates_id
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
@@ -235,6 +233,7 @@ exports.createProperty = async (req, res) => {
     let values = [
       name,
       address,
+      about,
       type,
       category,
       total_price || 0,
@@ -255,15 +254,16 @@ exports.createProperty = async (req, res) => {
     if (type === 'land' && land_size) {
       query = `
         INSERT INTO property (
-          name, address, type, category, total_price, price_per_year,
+          name, address, about, type, category, total_price, price_per_year,
           agent_fee, main_photo, owner_id, draft, publicized,
           land_size, created_at, inspection_fee, coordinates_id
-        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
       `;
 
       values = [
         name,
         address,
+        about,
         type,
         category,
         total_price || 0,
@@ -273,7 +273,7 @@ exports.createProperty = async (req, res) => {
         owner_id,
         draft ? 1 : 0,
         publicized,
-        land_size,
+        Number(land_size),
         inspection_fee || 0,
         coordinatesId,
       ];
