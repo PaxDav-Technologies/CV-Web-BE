@@ -74,8 +74,8 @@ exports.adminLogin = async (req, res) => {
         .json({ message: 'Email and password are required' });
     }
     const [user] = await connection.query(
-      'SELECT * FROM account WHERE email = ? AND role = ?',
-      [email, 'admin']
+      'SELECT * FROM account WHERE email = ? AND (role = ? OR role = ?)',
+      [email, 'admin', 'super_admin']
     );
     if (user.length === 0) {
       return res.status(404).json({ message: 'Admin not found' });
