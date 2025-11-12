@@ -3,6 +3,7 @@ const {
   authenticate,
   authorizePermissions,
   optionalAuth,
+  authorizeRoles,
 } = require('../middlewares/auth.middleware');
 const {
   getAllBlogs,
@@ -21,14 +22,20 @@ router.post(
   authorizePermissions(PERMISSIONS.CREATE_BLOG),
   createBlog
 );
+
 router.patch(
   '/:blogId',
   authenticate,
-  (req, res, next) => {
+  async (req, res, next) => {
     const { ROLES: _R, PERMISSIONS: _P } = require('../config/permissions');
-    if ((_R[userRole] || []).includes(_P.UPDATE_ANY_BLOG)) {
+    const user = req.user;
+
+    // If super_admin → allow update immediately
+    if (user.role === 'super_admin') {
       return updateBlog(req, res);
     }
+
+    // Otherwise, check if the user owns the blog
     return authorizePermissions(_P.UPDATE_OWN_BLOG, {
       checkOwnership: true,
       resourceParam: 'blogId',
@@ -37,10 +44,26 @@ router.patch(
   },
   updateBlog
 );
+
 router.delete(
-  '/:id',
+  '/:blogId',
   authenticate,
-  authorizePermissions(PERMISSIONS.DELETE_OWN_BLOG),
+  async (req, res, next) => {
+    const { ROLES: _R, PERMISSIONS: _P } = require('../config/permissions');
+    const user = req.user;
+
+    // If super_admin → allow update immediately
+    if (user.role === 'super_admin') {
+      return deleteBlog(req, res);
+    }
+
+    // Otherwise, check if the user owns the blog
+    return authorizePermissions(_P.UPDATE_OWN_BLOG, {
+      checkOwnership: true,
+      resourceParam: 'blogId',
+      resource: 'blogs',
+    })(req, res, next);
+  },
   deleteBlog
 );
 

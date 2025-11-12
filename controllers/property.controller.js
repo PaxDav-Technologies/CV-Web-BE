@@ -14,6 +14,8 @@ exports.getAllProperties = async (req, res) => {
       search,
       min_price,
       max_price,
+      category,
+      type,
       page = 1,
       limit = 100,
     } = req.query;
@@ -46,6 +48,14 @@ exports.getAllProperties = async (req, res) => {
     if (max_price !== undefined) {
       conditions.push('price_per_year <= ?');
       params.push(parseFloat(max_price));
+    }
+    if (category !== undefined) {
+      conditions.push('category = ?');
+      params.push(category);
+    }
+    if (type !== undefined) {
+      conditions.push('type = ?');
+      params.push(type);
     }
     if (search) {
       conditions.push('(name LIKE ? OR address LIKE ?)');
@@ -86,6 +96,7 @@ exports.getAllProperties = async (req, res) => {
     if (connection) connection.release();
   }
 };
+
 
 
 exports.getPropertyById = async (req, res) => {

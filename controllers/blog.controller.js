@@ -134,10 +134,10 @@ exports.createBlog = async (req, res) => {
   }
 };
 
-// 🟢 UPDATE BLOG
 exports.updateBlog = async (req, res) => {
   let connection;
   const { blogId } = req.params;
+
   try {
     const { title, subtitle, content, main_photo, category_id, draft } =
       req.body;
@@ -149,7 +149,7 @@ exports.updateBlog = async (req, res) => {
 
     connection = await pool.getConnection();
 
-    // Fetch blog to verify ownership or admin rights
+    // --- Fetch blog to verify ownership or super admin rights ---
     const [rows] = await connection.query(
       `SELECT author_id FROM blogs WHERE id = ?`,
       [blogId]
@@ -161,12 +161,14 @@ exports.updateBlog = async (req, res) => {
 
     const blog = rows[0];
 
-    if (user.role !== 'admin' && user.id !== blog.author_id) {
+    // --- Authorization: only owner or super_admin ---
+    if (user.role !== 'super_admin' && user.id !== blog.author_id) {
       return res
         .status(403)
         .json({ message: 'Forbidden: not allowed to edit' });
     }
 
+    // --- Handle image upload if provided ---
     let thumbnail = null;
     if (main_photo && main_photo.startsWith('data:')) {
       thumbnail = await uploadDataURIToCloudinary(
@@ -175,7 +177,7 @@ exports.updateBlog = async (req, res) => {
       );
     }
 
-    // Build dynamic update query
+    // --- Build dynamic update query ---
     const fields = [];
     const values = [];
 
@@ -208,7 +210,6 @@ exports.updateBlog = async (req, res) => {
       return res.status(400).json({ message: 'No fields to update' });
     }
 
-    fields.push('updated_at = NOW()');
     const sql = `UPDATE blogs SET ${fields.join(', ')} WHERE id = ?`;
     values.push(blogId);
 
@@ -223,7 +224,6 @@ exports.updateBlog = async (req, res) => {
   }
 };
 
-// 🗑️ DELETE BLOG
 exports.deleteBlog = async (req, res) => {
   let connection;
   const { blogId } = req.params;
@@ -234,21 +234,25 @@ exports.deleteBlog = async (req, res) => {
       return res.status(401).json({ message: 'Unauthorized: token required' });
     }
 
+    if (!blogId || isNaN(blogId)) {
+      return res.status(400).json({ message: 'Invalid blog ID' });
+    }
+
     connection = await pool.getConnection();
 
-    // Check existence and ownership
     const [rows] = await connection.query(
-      `SELECT author_id FROM blogs WHERE id = ?`,
+      `SELECT id, author_id FROM blogs WHERE id = ?`,
       [blogId]
     );
 
     if (rows.length === 0) {
+      console.warn(`No blog found with ID ${blogId}`);
       return res.status(404).json({ message: 'Blog post not found' });
     }
 
     const blog = rows[0];
 
-    if (user.role !== 'admin' && user.id !== blog.author_id) {
+    if (user.role !== 'super_admin' && user.id !== blog.author_id) {
       return res
         .status(403)
         .json({ message: 'Forbidden: not allowed to delete' });
