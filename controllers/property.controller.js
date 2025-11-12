@@ -227,7 +227,7 @@ exports.createProperty = async (req, res) => {
         name, address, about, type, category, total_price, price_per_year,
         agent_fee, main_photo, bedrooms, toilets, bathrooms, parking_space,
         owner_id, draft, publicized, created_at, inspection_fee, coordinates_id
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)
     `;
 
     let values = [
