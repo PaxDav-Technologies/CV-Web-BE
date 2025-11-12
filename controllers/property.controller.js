@@ -402,12 +402,14 @@ exports.createProperty = async (req, res) => {
 exports.updateProperty = async (req, res) => {
   let connection;
   try {
-    const { id } = req.params;
-    const parsedId = parseInt(id, 10);
+    const { propertyId } = req.params;
+    const parsedId = parseInt(propertyId, 10);
+
     if (Number.isNaN(parsedId) || parsedId <= 0) {
-      return res.status(400).json({ message: 'Invalid property id' });
+      return res.status(400).json({ message: 'Invalid property ID' });
     }
 
+    // Define allowed fields for update
     const allowed = [
       'name',
       'address',
@@ -426,8 +428,10 @@ exports.updateProperty = async (req, res) => {
       'draft',
     ];
 
+    // Dynamically build update query
     const updates = [];
     const params = [];
+
     for (const key of allowed) {
       if (Object.prototype.hasOwnProperty.call(req.body, key)) {
         updates.push(`${key} = ?`);
@@ -439,11 +443,12 @@ exports.updateProperty = async (req, res) => {
     if (updates.length === 0) {
       return res
         .status(400)
-        .json({ message: 'No valid fields provided to update' });
+        .json({ message: 'No valid fields provided for update' });
     }
 
     connection = await pool.getConnection();
 
+    // Perform update
     params.push(parsedId);
     const sql = `UPDATE property SET ${updates.join(', ')} WHERE id = ?`;
     const [result] = await connection.query(sql, params);
@@ -452,11 +457,16 @@ exports.updateProperty = async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
 
+    // Return updated record
     const [rows] = await connection.query(
       'SELECT * FROM property WHERE id = ?',
       [parsedId]
     );
-    return res.status(200).json({ message: 'Property updated', data: rows[0] });
+
+    return res.status(200).json({
+      message: 'Property updated successfully',
+      data: rows[0],
+    });
   } catch (error) {
     console.error('updateProperty error:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
@@ -468,21 +478,25 @@ exports.updateProperty = async (req, res) => {
 exports.deleteProperty = async (req, res) => {
   let connection;
   try {
-    const { id } = req.params;
-    const parsedId = parseInt(id, 10);
+    const { propertyId } = req.params;
+    const parsedId = parseInt(propertyId, 10);
+
     if (Number.isNaN(parsedId) || parsedId <= 0) {
-      return res.status(400).json({ message: 'Invalid property id' });
+      return res.status(400).json({ message: 'Invalid property ID' });
     }
 
     connection = await pool.getConnection();
+
     const [result] = await connection.query(
       'DELETE FROM property WHERE id = ?',
       [parsedId]
     );
+
     if (result.affectedRows === 0) {
       return res.status(404).json({ message: 'Property not found' });
     }
-    return res.status(200).json({ message: 'Property deleted' });
+
+    return res.status(200).json({ message: 'Property deleted successfully' });
   } catch (error) {
     console.error('deleteProperty error:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
@@ -490,6 +504,7 @@ exports.deleteProperty = async (req, res) => {
     if (connection) connection.release();
   }
 };
+
 
 exports.addAmenities = async (req, res) => {
   let connection;

@@ -17,7 +17,7 @@ CREATE TABLE IF NOT EXISTS `agents` (
   `professional_type` ENUM('real_estate_agent', 'property_manager', 'developer') DEFAULT 'real_estate_agent',
   `experience_level` ENuM('beginner', 'intermediate', 'expert') DEFAULT 'beginner',
   `phone_number` VARCHAR(30) NOT NULL,
-  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
   INDEX `idx_account_id` (`account_id`)
 );
 
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS `admins` (
   `account_id` INT NOT NULL,
   `phone_number` VARCHAR(30) NOT NULL,
   `username` VARCHAR(50) NOT NULL,
-  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
   INDEX `idx_account_id` (`account_id`)
 );
 
@@ -37,7 +37,7 @@ CREATE TABLE IF NOT EXISTS `codes`(
   `expires_at` TIMESTAMP NOT NULL,
   `account_id` INT NOT NULL,
   `purpose` ENUM('verification', 'reset_password') DEFAULT 'verification',
-  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
   INDEX `idx_code` (`code`)
 );
 
@@ -76,8 +76,8 @@ CREATE TABLE IF NOT EXISTS `property`(
   `owner_id` INT NOT NULL,
   `draft` BOOLEAN DEFAULT FALSE,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`owner_id`) REFERENCES `account`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`coordinates_id`) REFERENCES `coordinates`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`owner_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`coordinates_id`) REFERENCES `coordinates`(`id`) ON DELETE CASCADE,
   INDEX `idx_id` (`id`),
   INDEX `idx_owner_id` (`owner_id`),
   INDEX `idx_price_per_year` (`price_per_year`)
@@ -87,8 +87,8 @@ CREATE TABLE IF NOT EXISTS `property_resources`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `property_id` INT NOT NULL,
   `resource_id` INT NOT NULL,
-  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`resource_id`) REFERENCES `resources`(`id`) ON DELETE SET NULL
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`resource_id`) REFERENCES `resources`(`id`) ON DELETE CASCADE
 );
 
 
@@ -102,24 +102,24 @@ CREATE TABLE  IF NOT EXISTS `property_amenities`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `property_id` INT NOT NULL,
   `amenity_id` INT NOT NULL,
-  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`amenity_id`) REFERENCES `amenities`(`id`) ON DELETE SET NULL
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`amenity_id`) REFERENCES `amenities`(`id`) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS `views`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `account_id` INT NOT NULL,
   `property_id` INT NOT NULL,
-  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE SET NULL
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS `save`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `account_id` INT NOT NULL,
   `property_id` INT NOT NULL,
-  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE SET NULL
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE CASCADE
 );
 
 CREATE TABLE IF NOT EXISTS `benefit`(
@@ -147,8 +147,8 @@ CREATE TABLE IF NOT EXISTS `bookings` (
   `start_date` DATE DEFAULT NULL,
   `end_date` DATE DEFAULT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE CASCADE,
   INDEX `idx_account_id` (`account_id`),
   INDEX `idx_property_id` (`property_id`)
 );
@@ -167,7 +167,7 @@ CREATE TABLE IF NOT EXISTS `transactions`(
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
   FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
   INDEX `idx_property_id` (`property_id`),
   INDEX `idx_account_id` (`account_id`),
   INDEX `idx_reference` (`reference`)
@@ -191,8 +191,8 @@ CREATE TABLE IF NOT EXISTS `blogs`(
   `author_id` INT NOT NULL,
   `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
   `draft` BOOLEAN DEFAULT FALSE,
-  FOREIGN KEY (`author_id`) REFERENCES `account`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON DELETE SET NULL,
+  FOREIGN KEY (`author_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON DELETE CASCADE,
   INDEX `idx_author_id` (`author_id`),
   INDEX `idx_created_at` (`created_at`)
 );
@@ -201,6 +201,6 @@ CREATE TABLE IF NOT EXISTS `blog_categories`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `blog_id` INT NOT NULL,
   `category_id` INT NOT NULL,
-  FOREIGN KEY (`blog_id`) REFERENCES `blogs`(`id`) ON DELETE SET NULL,
-  FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON DELETE SET NULL
+  FOREIGN KEY (`blog_id`) REFERENCES `blogs`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON DELETE CASCADE
 );
