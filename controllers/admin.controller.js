@@ -62,3 +62,21 @@ exports.approveProperty = async (req, res) => {
     if (connection) connection.release();
   }
 };
+
+
+exports.getAllUsers = async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [allCustomers] = await connection.query(
+      'SELECT * FROM account WHERE role = ? OR role = ?',
+      ['agent', 'customer']
+    );
+    return res.status(200).json({ message: `success`, allCustomers });
+  } catch (error) {
+    console.log(`Error getting all agents: ${error}`);
+    return res.status(500).json({ message: `Internal Server Error` });
+  } finally {
+    if (connection) connection.release();
+  }
+};
