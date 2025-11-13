@@ -61,7 +61,7 @@ const NUM_BLOGS = 10;
     const id = await insertAccount(
       faker.person.firstName(),
       faker.person.lastName(),
-      faker.internet.email(),
+      `super_admin${i}@gmail.com`,
       'super_admin'
     );
     await pool.query(
@@ -77,7 +77,7 @@ const NUM_BLOGS = 10;
     const id = await insertAccount(
       faker.person.firstName(),
       faker.person.lastName(),
-      faker.internet.email(),
+      `admin${i}@gmail.com`,
       'admin'
     );
     await pool.query(
@@ -93,7 +93,7 @@ const NUM_BLOGS = 10;
     const id = await insertAccount(
       faker.person.firstName(),
       faker.person.lastName(),
-      faker.internet.email(),
+      `agent${i}@gmail.com`,
       'agent'
     );
     await pool.query(
@@ -118,7 +118,7 @@ const NUM_BLOGS = 10;
     const id = await insertAccount(
       faker.person.firstName(),
       faker.person.lastName(),
-      faker.internet.email(),
+      `customer${i}@gmail.com`,
       'customer'
     );
     accounts.push({ id, role: 'customer' });
@@ -138,12 +138,27 @@ const NUM_BLOGS = 10;
 
   // === AMENITIES, BENEFITS, CATEGORIES ===
   const amenitiesList = [
-    'Pool',
+    'Kitchen',
+    'Laundry area',
+    'Dinning area',
+    'Terrace',
+    'Fenced compound',
+    'Car Park / Garage',
+    'Home Garden',
+    'CCTV Surveillance',
+    'Swimming Pool',
     'Gym',
-    'Wi-Fi',
-    'Security',
-    'Parking',
-    'Water Heater',
+    'Intercom System',
+    'Smart House System',
+    '24/7 Electricity',
+    'Bar',
+    'Elevator/lift',
+    'Waste Disposal Service',
+    'Wifi Ready',
+    'Private Lounge',
+    'Home Cinema',
+    'Walk in closet',
+    'Office/Study room',
   ];
   const benefitsList = [
     'Free Maintenance',

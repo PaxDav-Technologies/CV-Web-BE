@@ -6,6 +6,7 @@ CREATE TABLE IF NOT EXISTS `account` (
   `password` VARCHAR(255) DEFAULT NULL,
   `verified` BOOLEAN DEFAULT FALSE,
   `avatar` VARCHAR(255) NOT NULL,
+  `suspended` BOOLEAN DEFAULT FALSE,
   `method` ENUM('google', 'apple', 'password') DEFAULT 'password',
   `role` ENUM('admin', 'customer', 'agent', 'super_admin') DEFAULT 'customer',
   INDEX `idx_email` (`email`)
