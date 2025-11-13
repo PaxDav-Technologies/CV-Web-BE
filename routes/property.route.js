@@ -7,7 +7,7 @@ const {
   getAmenities,
   deleteProperty,
 } = require('../controllers/property.controller');
-const { authenticate, optionalAuth } = require('../middlewares/auth.middleware');
+const { authenticate, optionalAuth, authorizePermissions } = require('../middlewares/auth.middleware');
 
 const router = require('express').Router();
 
@@ -23,13 +23,11 @@ router.patch('/update/:propertyId', authenticate,
       const { ROLES: _R, PERMISSIONS: _P } = require('../config/permissions');
       const user = req.user;
   
-      // If super_admin → allow update immediately
       if (user.role === 'super_admin') {
         return updateProperty(req, res);
       }
   
-      // Otherwise, check if the user owns the blog
-      return authorizePermissions(_P.UPDATE_OWN_BLOG, {
+      return authorizePermissions(_P.UPDATE_OWN_PROPERTY, {
         checkOwnership: true,
         resourceParam: 'propertyId',
         resource: 'property',
@@ -37,7 +35,25 @@ router.patch('/update/:propertyId', authenticate,
     },
     updateProperty
 );
-router.delete('/delete/:propertyId', authenticate, deleteProperty);
+router.delete(
+  '/delete/:propertyId',
+  authenticate,
+  async (req, res, next) => {
+    const { ROLES: _R, PERMISSIONS: _P } = require('../config/permissions');
+    const user = req.user;
+
+    if (user.role === 'super_admin') {
+      return deleteProperty(req, res);
+    }
+
+    return authorizePermissions(_P.DELETE_OWN_PROPERTY, {
+      checkOwnership: true,
+      resourceParam: 'propertyId',
+      resource: 'property',
+    })(req, res, next);
+  },
+  deleteProperty
+);
 
 
 

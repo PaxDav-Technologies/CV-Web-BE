@@ -30,12 +30,10 @@ router.patch(
     const { ROLES: _R, PERMISSIONS: _P } = require('../config/permissions');
     const user = req.user;
 
-    // If super_admin → allow update immediately
     if (user.role === 'super_admin') {
       return updateBlog(req, res);
     }
 
-    // Otherwise, check if the user owns the blog
     return authorizePermissions(_P.UPDATE_OWN_BLOG, {
       checkOwnership: true,
       resourceParam: 'blogId',
@@ -52,13 +50,11 @@ router.delete(
     const { ROLES: _R, PERMISSIONS: _P } = require('../config/permissions');
     const user = req.user;
 
-    // If super_admin → allow update immediately
     if (user.role === 'super_admin') {
       return deleteBlog(req, res);
     }
 
-    // Otherwise, check if the user owns the blog
-    return authorizePermissions(_P.UPDATE_OWN_BLOG, {
+    return authorizePermissions(_P.DELETE_OWN_BLOG, {
       checkOwnership: true,
       resourceParam: 'blogId',
       resource: 'blogs',

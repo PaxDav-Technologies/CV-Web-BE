@@ -110,7 +110,8 @@ exports.getPropertyById = async (req, res) => {
 
     connection = await pool.getConnection();
 
-    const [rows] = await connection.query(
+    // 1️⃣ Get property details (without TIMESTAMPDIFF or JSON functions)
+    const [propertyRows] = await connection.query(
       `
       SELECT 
         p.id,
@@ -135,28 +136,54 @@ exports.getPropertyById = async (req, res) => {
         a.lastname AS owner_lastname,
         a.avatar AS owner_avatar,
         c.longitude,
-        c.latitude,
-        JSON_ARRAYAGG(r.url) AS resources
+        c.latitude
       FROM property p
       LEFT JOIN account a ON p.owner_id = a.id
       LEFT JOIN coordinates c ON p.coordinates_id = c.id
-      LEFT JOIN property_resources pr ON p.id = pr.property_id
-      LEFT JOIN resources r ON pr.resource_id = r.id
       WHERE p.id = ?
-      GROUP BY 
-        p.id, p.name, p.address, p.total_price, p.price_per_year, p.agent_fee, 
-        p.inspection_fee, p.about, p.main_photo, p.bedrooms, p.toilets, p.bathrooms, 
-        p.parking_space, p.land_size, p.category, p.type, p.draft, p.created_at, 
-        a.firstname, a.lastname, a.avatar, c.longitude, c.latitude
       `,
       [parsedId]
     );
 
-    if (!rows || rows.length === 0) {
+    if (!propertyRows || propertyRows.length === 0) {
       return res.status(404).json({ message: 'Property not found' });
     }
 
-    return res.status(200).json({ message: 'success', data: rows[0] });
+    const property = propertyRows[0];
+
+    // 2️⃣ Get resources
+    const [resourcesRows] = await connection.query(
+      `
+      SELECT r.url 
+      FROM property_resources pr
+      LEFT JOIN resources r ON pr.resource_id = r.id
+      WHERE pr.property_id = ?
+      `,
+      [parsedId]
+    );
+    property.resources = resourcesRows.map((r) => r.url);
+
+    // 3️⃣ Get counts
+    const [[viewCount]] = await connection.query(
+      'SELECT COUNT(*) AS count FROM views WHERE property_id = ?',
+      [parsedId]
+    );
+    const [[saveCount]] = await connection.query(
+      'SELECT COUNT(*) AS count FROM save WHERE property_id = ?',
+      [parsedId]
+    );
+
+    // 4️⃣ Compute days listed manually
+    const createdAt = new Date(property.created_at);
+    const now = new Date();
+    const daysListed = Math.floor((now - createdAt) / (1000 * 60 * 60 * 24));
+
+    // 5️⃣ Add computed values
+    property.views_count = viewCount.count;
+    property.saves_count = saveCount.count;
+    property.days_listed = daysListed;
+
+    return res.status(200).json({ message: 'success', data: property });
   } catch (error) {
     console.error(`Error getting property by ID: ${error}`);
     return res.status(500).json({ message: 'Internal Server Error' });
@@ -164,6 +191,9 @@ exports.getPropertyById = async (req, res) => {
     if (connection) connection.release();
   }
 };
+
+
+
 
 
 exports.createProperty = async (req, res) => {
@@ -479,9 +509,10 @@ exports.deleteProperty = async (req, res) => {
   let connection;
   try {
     const { propertyId } = req.params;
-    const parsedId = parseInt(propertyId, 10);
+    const parsedId = parseInt(propertyId);
 
     if (Number.isNaN(parsedId) || parsedId <= 0) {
+      console.log(parsedId);
       return res.status(400).json({ message: 'Invalid property ID' });
     }
 
@@ -557,32 +588,6 @@ exports.getAmenities = async (req, res) => {
   } catch (error) {
     console.log(`Error getting amenities: ${error}`);
     return res.status(500).json({ message: `Internal Server Error` });
-  } finally {
-    if (connection) connection.release();
-  }
-};
-
-exports.deleteProperty = async (req, res) => {
-  let connection;
-  try {
-    const { id } = req.params;
-    const parsedId = parseInt(id, 10);
-    if (Number.isNaN(parsedId) || parsedId <= 0) {
-      return res.status(400).json({ message: 'Invalid property id' });
-    }
-
-    connection = await pool.getConnection();
-    const [result] = await connection.query(
-      'DELETE FROM property WHERE id = ?',
-      [parsedId]
-    );
-    if (result.affectedRows === 0) {
-      return res.status(404).json({ message: 'Property not found' });
-    }
-    return res.status(200).json({ message: 'Property deleted' });
-  } catch (error) {
-    console.error('deleteProperty error:', error);
-    return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
     if (connection) connection.release();
   }
