@@ -39,6 +39,7 @@ app.use('/api/auth', authRouter);
 app.use('/api/property', require('./routes/property.route'));
 app.use('/api/blog', require('./routes/blog.route'));
 app.use('/api/admin', require('./routes/admin.route'));
+app.use('/api/customer', require('./routes/customer.route'));
 app.use('/api/private', async (req, res) => {
   let connection;
   try {
