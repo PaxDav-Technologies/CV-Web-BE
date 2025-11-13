@@ -9,7 +9,9 @@ const {
   registerAdmin,
   getLoggedInUser,
   resendVerificationCode,
-  uploadAvatar
+  uploadAvatar,
+  googleRegister,
+  googleLogin
 } = require('../controllers/auth.controller');
 const {
   authenticate,
@@ -20,30 +22,31 @@ const passport = require('passport');
 const router = require('express').Router();
 const multer = require('multer');
 const { ROLES } = require('../config/permissions');
+require('../utils/google');
 
 const upload = multer({ storage: multer.memoryStorage() });
 
-// router.use(passport.initialize());
+router.use(passport.initialize());
 
-// router.get(
-//   '/google/login',
-//   passport.authenticate('google-login', {
-//     scope: ['profile', 'email'],
-//     session: false,
-//   })
-// );
+router.get(
+  '/google/login',
+  passport.authenticate('google-login', {
+    scope: ['profile', 'email'],
+    session: false,
+  })
+);
 
-// router.get(
-//   '/google/register',
-//   passport.authenticate('google-register', {
-//     scope: ['profile', 'email'],
-//     session: false,
-//   })
-// );
+router.get(
+  '/google/register',
+  passport.authenticate('google-register', {
+    scope: ['profile', 'email'],
+    session: false,
+  })
+);
 
-// router.get('/google/register/callback', googleRegister);
+router.get('/google/register/callback', googleRegister);
 
-// router.get('/google/login/callback', googleLogin);
+router.get('/google/login/callback', googleLogin);
 
 router.post('/register', register);
 router.post(

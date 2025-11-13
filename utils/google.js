@@ -2,6 +2,7 @@
 const passport = require('passport');
 const { pool } = require('../config/db');
 const GoogleStrategy = require('passport-google-oauth20').Strategy;
+require('dotenv').config();
 
 passport.use(
   'google-register',
@@ -9,7 +10,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: `${process.env.GOOGLE_CALLBACK_URL}/register/callback`,
+      callbackURL: `${process.env.GOOGLE_REGISTER_CALLBACK_URL}`,
       authorizationParams: {
         prompt: 'select_account',
       },
@@ -59,7 +60,7 @@ passport.use(
     {
       clientID: process.env.GOOGLE_CLIENT_ID,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: `${process.env.GOOGLE_CALLBACK_URL}/login/callback`,
+      callbackURL: `${process.env.GOOGLE_LOGIN_CALLBACK_URL}`,
       authorizationParams: {
         prompt: 'select_account',
       },
