@@ -63,7 +63,6 @@ exports.approveProperty = async (req, res) => {
   }
 };
 
-
 exports.getAllUsers = async (req, res) => {
   let connection;
   try {
@@ -76,6 +75,31 @@ exports.getAllUsers = async (req, res) => {
   } catch (error) {
     console.log(`Error getting all agents: ${error}`);
     return res.status(500).json({ message: `Internal Server Error` });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+exports.toggleSuspension = async (req, res) => {
+  let connection;
+  const { accountId } = req.body;
+  try {
+    connection = await pool.getConnection();
+    const [existing] = await connection.query(
+      `
+      SELECT * FROM account where role = ? AND id = ?`,
+      ['agent', accountId]
+    );
+    if (existing.length > 0) {
+      await connection.query(`UPDATE account SET suspended = ?`, [
+        existing[0].suspended ? 0 : 1,
+      ]);
+    }
+    let message = existing[0].suspended ? 'suspended' : 'unsuspended';
+    return res.status(200).json({ message: `Account ${message}` });
+  } catch (error) {
+    console.log(`Error suspending account: ${error}`);
+    return res.status(500).json({ message: 'internal Server Error' });
   } finally {
     if (connection) connection.release();
   }

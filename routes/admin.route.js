@@ -35,4 +35,6 @@ router.patch(
 
 router.get('/all-users', authenticate, authorizeRoles('admin', 'super_admin'), getAllUsers)
 
+router.patch('/account/suspend', authenticate, authorizeRoles('super_admin'));
+
 module.exports = router;

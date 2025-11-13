@@ -110,7 +110,7 @@ exports.getPropertyById = async (req, res) => {
 
     connection = await pool.getConnection();
 
-    // 1️⃣ Get property details (without TIMESTAMPDIFF or JSON functions)
+    // 1️⃣ Get property details
     const [propertyRows] = await connection.query(
       `
       SELECT 
@@ -163,7 +163,19 @@ exports.getPropertyById = async (req, res) => {
     );
     property.resources = resourcesRows.map((r) => r.url);
 
-    // 3️⃣ Get counts
+    // 3️⃣ Get amenities
+    const [amenitiesRows] = await connection.query(
+      `
+      SELECT a.name, a.avatar
+      FROM property_amenities pa
+      LEFT JOIN amenities a ON pa.amenity_id = a.id
+      WHERE pa.property_id = ?
+      `,
+      [parsedId]
+    );
+    property.amenities = amenitiesRows;
+
+    // 4️⃣ Get counts
     const [[viewCount]] = await connection.query(
       'SELECT COUNT(*) AS count FROM views WHERE property_id = ?',
       [parsedId]
@@ -173,12 +185,12 @@ exports.getPropertyById = async (req, res) => {
       [parsedId]
     );
 
-    // 4️⃣ Compute days listed manually
+    // 5️⃣ Compute days listed manually
     const createdAt = new Date(property.created_at);
     const now = new Date();
     const daysListed = Math.floor((now - createdAt) / (1000 * 60 * 60 * 24));
 
-    // 5️⃣ Add computed values
+    // 6️⃣ Add computed values
     property.views_count = viewCount.count;
     property.saves_count = saveCount.count;
     property.days_listed = daysListed;
@@ -191,7 +203,6 @@ exports.getPropertyById = async (req, res) => {
     if (connection) connection.release();
   }
 };
-
 
 
 
