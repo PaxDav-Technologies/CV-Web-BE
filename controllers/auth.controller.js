@@ -16,22 +16,33 @@ exports.googleRegister = (req, res, next) => {
     'google-register',
     { session: false, prompt: 'select_account' },
     async (err, user, info) => {
+      // console.log(user);
+      // console.log(err);
+      // console.log(info)
       if (err) {
         return res.redirect(
-          `${process.env.FRONTEND_URL}/auth/signup?error=${encodeURIComponent(
-            err.message
+          `${
+            process.env.FRONTEND_URL
+          }/create-account?error=${encodeURIComponent(err.message)}`
+        );
+      }
+
+      if (info.message) {
+        return res.redirect(
+          `${process.env.FRONTEND_URL}/create-account?error=${encodeURIComponent(
+            info.message
           )}`
         );
       }
+
       if (!user) {
         return res.redirect(
-          `${process.env.FRONTEND_URL}/auth/signup?error=${encodeURIComponent(
-            'User not found'
+          `${process.env.FRONTEND_URL}/create-account?error=${encodeURIComponent(
+            'Account not found'
           )}`
         );
       }
-      sendWelcomeEmail(user.email, user.firstName);
-      return res.redirect(`${process.env.FRONTEND_URL}/auth/login`);
+      return res.redirect(`${process.env.FRONTEND_URL}/login`);
     }
   )(req, res, next);
 };
@@ -41,11 +52,11 @@ exports.googleLogin = (req, res, next) => {
     'google-login',
     { session: false, prompt: 'select_account' },
     (err, user, info) => {
-      if (err) return res.redirect(`${process.env.FRONTEND_URL}/auth/login`);
+      if (err) return res.redirect(`${process.env.FRONTEND_URL}/login`);
 
       if (!user) {
         return res.redirect(
-          `${process.env.FRONTEND_URL}/auth/login?error=${encodeURIComponent(
+          `${process.env.FRONTEND_URL}/login?error=${encodeURIComponent(
             info?.message || 'Login failed'
           )}`
         );
@@ -53,9 +64,17 @@ exports.googleLogin = (req, res, next) => {
 
       const token = jwt.sign(
         { id: user.id, email: user.email, role: user.role },
-        env.JWT_SECRET,
+        process.env.JWT_SECRET,
         { expiresIn: '24h' }
       );
+
+      if (err) {
+        return res.redirect(
+          `${process.env.FRONTEND_URL}/login?error=${encodeURIComponent(
+            `Login failed`
+          )}`
+        );
+      }
 
       return res.redirect(
         `${process.env.DASHBOARD_URL}/dashboard/?token=${token}`

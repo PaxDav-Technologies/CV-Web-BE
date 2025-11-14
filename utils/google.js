@@ -21,19 +21,20 @@ passport.use(
         // console.log(accessToken, refreshToken, profile);
         const email = profile.emails[0].value;
         let [user] = await connection.query(
-          `SELECT * FROM user WHERE email = ?`,
+          `SELECT * FROM account WHERE email = ?`,
           [email]
         );
-
-        if (user) {
+        console.log(user)
+        if (user.length > 0) {
           return done(null, false, { message: 'User already exists' });
         }
 
-        if (!user) {
+        if (user.length === 0) {
           [user] = await connection.query(
-            `INSERT INTO account VALUES (name, email, method, avatar, role, verified)`,
+            `INSERT INTO account (firstname, lastname, email, method, avatar, role, verified) VALUES (?, ?, ?, ?, ?, ?, ?)`,
             [
               profile.name?.givenName,
+              profile.name?.familyName || "Null",
               email,
               'google',
               profile.photos?.[0]?.value,
@@ -43,7 +44,8 @@ passport.use(
           );
         }
 
-        return done(null, user);
+        // console.log(user);
+        return done(null, user[0]);
       } catch (err) {
         console.error('Google Register Error:', err);
         return done(err, null);
@@ -70,13 +72,13 @@ passport.use(
       try {
         const email = profile.emails[0].value;
         const [user] = await connection.query(
-          `SELECT * FROM user WHERE email = ?`,
+          `SELECT * FROM account WHERE email = ?`,
           [email]
         );
 
         if (!user) {
           return done(null, false, {
-            message: 'User not found. Please register first.',
+            message: 'Account not found. Please register first.',
           });
         }
 
