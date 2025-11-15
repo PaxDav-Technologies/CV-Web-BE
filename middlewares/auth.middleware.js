@@ -33,7 +33,7 @@ exports.authenticate = async (req, res, next) => {
     }
     connection = await pool.getConnection();
     const [rows] = await connection.query(
-      `SELECT id, role, verified FROM account WHERE id = ?`,
+      `SELECT id, role, email, verified FROM account WHERE id = ?`,
       [user.id]
     );
     if (rows.length === 0) {
@@ -47,6 +47,7 @@ exports.authenticate = async (req, res, next) => {
     }
     req.user = {
       id: user.id,
+      email: rows[0].email,
       role: user.role,
     };
     next();
@@ -87,7 +88,7 @@ exports.optionalAuth = async (req, res, next) => {
 
     connection = await pool.getConnection();
     const [rows] = await connection.query(
-      `SELECT id, role, verified FROM account WHERE id = ?`,
+      `SELECT id, role, email, verified FROM account WHERE id = ?`,
       [decoded.id]
     );
 
@@ -98,6 +99,7 @@ exports.optionalAuth = async (req, res, next) => {
 
     req.user = {
       id: decoded.id,
+      email: rows[0].email,
       role: rows[0].role,
       verified: rows[0].verified,
     };
