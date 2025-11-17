@@ -4,6 +4,7 @@ const {
   getAllAgents,
   approveProperty,
   getAllUsers,
+  toggleSuspension,
 } = require('../controllers/admin.controller');
 const {
   authorizePermissions,
@@ -35,6 +36,6 @@ router.patch(
 
 router.get('/all-users', authenticate, authorizeRoles('admin', 'super_admin'), getAllUsers)
 
-router.patch('/account/suspend', authenticate, authorizeRoles('super_admin'));
+router.patch('/account/suspend', authenticate, authorizeRoles('super_admin'), toggleSuspension);
 
 module.exports = router;

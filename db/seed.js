@@ -39,8 +39,8 @@ const NUM_BLOGS = 10;
   ) => {
     const password = await hashPassword('password123');
     const [result] = await pool.query(
-      `INSERT INTO account (firstname, lastname, email, password, verified, avatar, method, role)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+      `INSERT INTO account (firstname, lastname, email, password, verified, avatar, method, role, suspended)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       [
         firstname,
         lastname,
@@ -50,6 +50,7 @@ const NUM_BLOGS = 10;
         faker.image.avatar(),
         method,
         role,
+        false
       ]
     );
     return result.insertId;

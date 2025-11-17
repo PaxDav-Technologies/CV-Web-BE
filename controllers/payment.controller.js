@@ -26,7 +26,7 @@ exports.initializePropertyPayment = async (req, res) => {
     const commission = calculateCommission(amount);
 
     const paystackData = await axios.post(
-      `https://paystack.com/api/transaction/initialize`,
+      `https://api.paystack.co/transaction/initialize`,
       {
         email: req.user.email,
         amount: amount * 100,
@@ -93,7 +93,7 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: `Invalid transaction reference` });
     }
     const paystackDetails = await axios.get(
-      `https://paystack.co/transaction/verify/${reference}`
+      `https://api.paystack.co/transaction/verify/${reference}`
     );
     if (!paystackDetails) {
       return res.status(500).json({ message: `An error occurred` });

@@ -98,6 +98,9 @@ exports.getAllUsers = async (req, res) => {
 exports.toggleSuspension = async (req, res) => {
   let connection;
   const { accountId } = req.body;
+  if(!parseInt(accountId)) {
+    return res.status(400).json({message: "account ID must be a valid ID"})
+  }
   try {
     connection = await pool.getConnection();
     const [existing] = await connection.query(
@@ -114,7 +117,7 @@ exports.toggleSuspension = async (req, res) => {
     return res.status(200).json({ message: `Account ${message}` });
   } catch (error) {
     console.log(`Error suspending account: ${error}`);
-    return res.status(500).json({ message: 'internal Server Error' });
+    return res.status(400).json({ message: 'This account cannot be suspended' });
   } finally {
     if (connection) connection.release();
   }

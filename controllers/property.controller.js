@@ -6,6 +6,44 @@ exports.getAllProperties = async (req, res) => {
   try {
     connection = await pool.getConnection();
 
+    // Fetch properties + owner suspended status
+    const sql = `
+      SELECT 
+        p.*,
+        acc.suspended
+      FROM property p
+      JOIN account acc ON acc.id = p.owner_id
+    `;
+
+    const [properties] = await connection.query(sql);
+
+    // Fetch amenities separately
+    const [amenityRows] = await connection.query(`
+      SELECT 
+        pa.property_id,
+        a.name
+      FROM property_amenities pa
+      JOIN amenities a ON a.id = pa.amenity_id
+    `);
+
+    // Map amenities to their properties
+    const amenityMap = {};
+    for (const row of amenityRows) {
+      if (!amenityMap[row.property_id]) {
+        amenityMap[row.property_id] = [];
+      }
+      amenityMap[row.property_id].push(row.name);
+    }
+
+    // Attach amenities to properties
+    const enriched = properties.map((p) => ({
+      ...p,
+      amenities: amenityMap[p.id] || [],
+    }));
+
+    // Now apply filtering in JS
+    let result = [...enriched];
+
     const {
       bedrooms,
       toilets,
@@ -16,78 +54,70 @@ exports.getAllProperties = async (req, res) => {
       max_price,
       category,
       type,
+      amenities,
       page = 1,
       limit = 100,
     } = req.query;
 
-    const conditions = [];
-    const params = [];
-
-    // --- Filters ---
-    if (bedrooms !== undefined) {
-      conditions.push('bedrooms = ?');
-      params.push(parseInt(bedrooms, 10));
-    }
-    if (toilets !== undefined) {
-      conditions.push('toilets = ?');
-      params.push(parseInt(toilets, 10));
-    }
-    if (parking_space !== undefined) {
-      conditions.push('parking_space = ?');
-      params.push(parseInt(parking_space, 10));
-    }
-    if (draft !== undefined) {
-      const d = draft === 'true' || draft === '1' ? 1 : 0;
-      conditions.push('draft = ?');
-      params.push(d);
-    }
-    if (min_price !== undefined) {
-      conditions.push('price_per_year >= ?');
-      params.push(parseFloat(min_price));
-    }
-    if (max_price !== undefined) {
-      conditions.push('price_per_year <= ?');
-      params.push(parseFloat(max_price));
-    }
-    if (category !== undefined) {
-      conditions.push('category = ?');
-      params.push(category);
-    }
-    if (type !== undefined) {
-      conditions.push('type = ?');
-      params.push(type);
-    }
-    if (search) {
-      conditions.push('(name LIKE ? OR address LIKE ?)');
-      params.push(`%${search}%`, `%${search}%`);
-    }
-
-    // --- Publicised Filter Logic ---
     const user = req.user || null;
 
-    if (!user) {
-      conditions.push('publicized = TRUE');
-    } else if (user.role !== 'admin' && user.role !== 'super_admin') {
-      conditions.push('(publicized = TRUE OR owner_id = ?)');
-      params.push(user.id);
+    // FILTER 1 — SUSPENDED OWNERS
+    result = result.filter((p) => {
+      if (!user) return p.suspended === 0 && p.publicized === 1;
+
+      const isAdmin = user.role === 'admin' || user.role === 'super_admin';
+      if (isAdmin) return true;
+
+      if (p.owner_id === user.id) return true;
+
+      return p.suspended === 0 && p.publicized === 1;
+    });
+
+    // FILTER 2 — Other filters
+    if (bedrooms) result = result.filter((p) => p.bedrooms == bedrooms);
+    if (toilets) result = result.filter((p) => p.toilets == toilets);
+    if (parking_space)
+      result = result.filter((p) => p.parking_space == parking_space);
+    if (draft !== undefined)
+      result = result.filter(
+        (p) => p.draft == (draft === 'true' || draft === '1')
+      );
+    if (min_price)
+      result = result.filter((p) => p.price_per_year >= parseFloat(min_price));
+    if (max_price)
+      result = result.filter((p) => p.price_per_year <= parseFloat(max_price));
+    if (category) result = result.filter((p) => p.category === category);
+    if (type) result = result.filter((p) => p.type === type);
+    if (search) {
+      const q = search.toLowerCase();
+      result = result.filter(
+        (p) =>
+          p.name.toLowerCase().includes(q) ||
+          p.address.toLowerCase().includes(q)
+      );
     }
 
-    // --- Pagination ---
-    let sql = 'SELECT * FROM property';
-    if (conditions.length) sql += ' WHERE ' + conditions.join(' AND ');
+    // FILTER 3 — Amenities
+    if (amenities) {
+      const required = amenities.split(',').map((a) => a.trim().toLowerCase());
+      result = result.filter((p) =>
+        required.every((req) =>
+          p.amenities.map((x) => x.toLowerCase()).includes(req)
+        )
+      );
+    }
 
-    const lim = Math.min(Math.max(parseInt(limit, 10) || 100, 1), 1000);
-    const pg = Math.max(parseInt(page, 10) || 1, 1);
+    // Pagination
+    const lim = Math.min(Math.max(parseInt(limit, 10), 1), 1000);
+    const pg = Math.max(parseInt(page, 10), 1);
     const offset = (pg - 1) * lim;
-    sql += ' LIMIT ? OFFSET ?';
-    params.push(lim, offset);
 
-    // --- Execute Query ---
-    const [allProperties] = await connection.query(sql, params);
+    const paginated = result.slice(offset, offset + lim);
 
     return res.status(200).json({
       message: 'Success',
-      data: allProperties,
+      count: result.length,
+      data: paginated,
     });
   } catch (error) {
     console.error('getAllProperties error:', error);
@@ -96,6 +126,8 @@ exports.getAllProperties = async (req, res) => {
     if (connection) connection.release();
   }
 };
+
+
 
 
 

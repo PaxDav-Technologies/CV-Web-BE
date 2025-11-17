@@ -57,7 +57,7 @@ CREATE TABLE IF NOT EXISTS `coordinates`(
 
 CREATE TABLE IF NOT EXISTS `property`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `name` VARCHAR(50) NOT NULL,
+  `name` VARCHAR(50) NOT NULL,  
   `address` VARCHAR(255) NOT NULL,
   `total_price` DECIMAL(15, 2) NOT NULL,
   `price_per_year` DECIMAL(15, 2) DEFAULT 0,
