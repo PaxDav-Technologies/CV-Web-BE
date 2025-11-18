@@ -12,8 +12,13 @@ exports.initializePropertyPayment = async (req, res) => {
     if (!propertyId) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
+
+    if(!parseInt(propertyId)) {
+      return res.status(400).json({ message: 'Invalid propertyId' });
+    }
+
     const [property] = await connection.query(
-      'SELECT * FROM properties WHERE id = ?',
+      'SELECT * FROM property WHERE id = ?',
       [propertyId]
     );
 
