@@ -105,12 +105,13 @@ exports.toggleSuspension = async (req, res) => {
     connection = await pool.getConnection();
     const [existing] = await connection.query(
       `
-      SELECT * FROM account where role = ? AND id = ?`,
+      SELECT * FROM account where role = ? WHERE id = ?`,
       ['agent', accountId]
     );
     if (existing.length > 0) {
-      await connection.query(`UPDATE account SET suspended = ?`, [
+      await connection.query(`UPDATE account SET suspended = ? WHERE id = ?`, [
         existing[0].suspended ? 0 : 1,
+        accountId
       ]);
     }
     let message = existing[0].suspended ? 'suspended' : 'unsuspended';
