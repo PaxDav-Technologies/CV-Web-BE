@@ -61,19 +61,17 @@ exports.getAllProperties = async (req, res) => {
 
     const user = req.user || null;
 
-    // FILTER 1 — SUSPENDED OWNERS
     result = result.filter((p) => {
-      if (!user) return p.suspended === 0 && p.publicized === 1 && p.draft === 0 && p.paid === 0;
+      const isAdmin =
+        user && (user.role === 'admin' || user.role === 'super_admin');
 
-      const isAdmin = user.role === 'admin' || user.role === 'super_admin';
       if (isAdmin) return true;
 
-      if (p.owner_id === user.id) return true;
+      if (user && p.owner_id === user.id) return true;
 
-      return p.suspended === 0 && p.publicized === 1;
+      return p.suspended === 0 && p.publicized === 1 && p.draft === 0;
     });
 
-    // FILTER 2 — Other filters
     if (bedrooms) result = result.filter((p) => p.bedrooms == bedrooms);
     if (toilets) result = result.filter((p) => p.toilets == toilets);
     if (parking_space)
@@ -126,9 +124,6 @@ exports.getAllProperties = async (req, res) => {
     if (connection) connection.release();
   }
 };
-
-
-
 
 
 exports.getPropertyById = async (req, res) => {

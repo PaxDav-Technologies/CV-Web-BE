@@ -90,7 +90,7 @@ exports.initializePropertyPayment = async (req, res) => {
     return res.status(201).json({
       message: `success`,
       paymentLink: paystackData.data.data.authorization_url,
-      reference
+      reference,
     });
   } catch (error) {
     console.log(`Error initiating payment: ${error.message}`);
@@ -111,8 +111,9 @@ exports.verifyPayment = async (req, res) => {
       return res.status(400).json({ message: `Reference is required` });
     }
     connection = await pool.getConnection();
+    await connection.beginTransaction();
     const [transaction] = await connection.query(
-      `SELECT * FROM transacitions WHERE reference = ?`,
+      `SELECT * FROM transactions WHERE reference = ?`,
       [reference]
     );
     if (transaction.length === 0) {
@@ -121,11 +122,18 @@ exports.verifyPayment = async (req, res) => {
     const paystackDetails = await axios.get(
       `https://api.paystack.co/transaction/verify/${reference}`
     );
-    if (!paystackDetails) {
-      return res.status(500).json({ message: `An error occurred` });
+    if (!paystackDetails.data.status) {
+      return res
+        .status(400)
+        .json({ message: `${paystackDetails.data.message}` });
     }
 
-    return res.status(200);
+    await connection.query(
+      `UPDATE transactions SET status = ? WHERE reference = ?`,
+      [paystackDetails.data.data.status, reference]
+    );
+
+    return res.status(200).json({ message: 'success' });
   } catch (error) {
     console.log(`Error verifying payment: ${error}`);
     return res.status(500).json({ message: `Internal Server Error` });
