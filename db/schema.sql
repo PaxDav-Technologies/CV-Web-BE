@@ -68,6 +68,7 @@ CREATE TABLE IF NOT EXISTS `property`(
   `bedrooms` INT(5) DEFAULT NULL,
   `toilets` INT(5) DEFAULT NULL,
   `publicized` BOOLEAN DEFAULT FALSE,
+  `duration_months` INT DEFAULT 12,
   `paid` BOOLEAN DEFAULT FALSE,
   `bathrooms` INT(5) DEFAULT NULL,
   `parking_space` INT(5) DEFAULT NULL,
@@ -84,6 +85,9 @@ CREATE TABLE IF NOT EXISTS `property`(
   INDEX `idx_owner_id` (`owner_id`),
   INDEX `idx_price_per_year` (`price_per_year`)
 );
+
+-- ALTER TABLE `transactions` 
+-- ADD COLUMN `duration_months` INT DEFAULT 12 AFTER `type`;
 
 CREATE TABLE IF NOT EXISTS `property_resources`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,

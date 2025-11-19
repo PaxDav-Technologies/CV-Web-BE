@@ -1,6 +1,6 @@
 const mysql = require('mysql2/promise');
-const fs = require('fs')
-const path = require('path')
+const fs = require('fs');
+const path = require('path');
 
 const pool = mysql.createPool({
   host: process.env.DB_HOST || 'localhost',

@@ -18,34 +18,35 @@ passport.use(
     async (accessToken, refreshToken, profile, done) => {
       const connection = await pool.getConnection();
       try {
-        // console.log(accessToken, refreshToken, profile);
         const email = profile.emails[0].value;
-        let [user] = await connection.query(
+        const [existingUsers] = await connection.query(
           `SELECT * FROM account WHERE email = ?`,
           [email]
         );
-        console.log(user)
-        if (user.length > 0) {
+
+        if (existingUsers.length > 0) {
           return done(null, false, { message: 'User already exists' });
         }
 
-        if (user.length === 0) {
-          [user] = await connection.query(
-            `INSERT INTO account (firstname, lastname, email, method, avatar, role, verified) VALUES (?, ?, ?, ?, ?, ?, ?)`,
-            [
-              profile.name?.givenName,
-              profile.name?.familyName || "Null",
-              email,
-              'google',
-              profile.photos?.[0]?.value,
-              'customer',
-              true,
-            ]
-          );
-        }
+        const [result] = await connection.query(
+          `INSERT INTO account (firstname, lastname, email, method, avatar, role, verified) VALUES (?, ?, ?, ?, ?, ?, ?)`,
+          [
+            profile.name?.givenName || 'User',
+            profile.name?.familyName || 'Null',
+            email,
+            'google',
+            profile.photos?.[0]?.value || '',
+            'customer',
+            true,
+          ]
+        );
 
-        // console.log(user);
-        return done(null, user[0]);
+        const [newUsers] = await connection.query(
+          `SELECT * FROM account WHERE id = ?`,
+          [result.insertId]
+        );
+
+        return done(null, newUsers[0]);
       } catch (err) {
         console.error('Google Register Error:', err);
         return done(err, null);
@@ -71,16 +72,19 @@ passport.use(
       const connection = await pool.getConnection();
       try {
         const email = profile.emails[0].value;
-        const [user] = await connection.query(
+        const [users] = await connection.query(
           `SELECT * FROM account WHERE email = ?`,
           [email]
         );
 
-        if (!user) {
+        // FIX: Check if users array is empty
+        if (users.length === 0) {
           return done(null, false, {
             message: 'Account not found. Please register first.',
           });
         }
+
+        const user = users[0];
 
         if (user.method === 'password') {
           return done(null, false, { message: 'Please login with Password' });
