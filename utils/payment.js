@@ -1,5 +1,5 @@
 exports.generateReference = () => {
-  return Math.random() * 1000000;
+  return Math.floor(Math.random() * 1000000 + Date.now());
 };
 
 exports.calculateCommission = (amount) => {

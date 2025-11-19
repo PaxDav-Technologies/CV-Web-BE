@@ -6,17 +6,18 @@ exports.initializePropertyPayment = async (req, res) => {
   let connection;
   try {
     connection = await pool.getConnection();
-    const { currency = 'NGN', propertyId } = req.body;
+    const { currency = 'NGN', propertyId, purpose } = req.body;
     const userId = req.user.id;
 
     if (!propertyId) {
       return res.status(400).json({ message: 'Missing required fields' });
     }
 
-    if(!parseInt(propertyId)) {
+    if (!parseInt(propertyId)) {
       return res.status(400).json({ message: 'Invalid propertyId' });
     }
 
+    await connection.beginTransaction();
     const [property] = await connection.query(
       'SELECT * FROM property WHERE id = ?',
       [propertyId]
@@ -26,7 +27,15 @@ exports.initializePropertyPayment = async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
 
-    const amount = property[0].total_price;
+    let amount;
+
+    if (purpose == `inspection_fee`) {
+      amount = property[0].inspection_fee;
+    } else if (purpose === `rent` || purpose === `sale`) {
+      amount = property[0].total_price;
+    } else {
+      return res.status(400).json({ message: 'Invalid payment purpose' });
+    }
     const reference = generateReference();
     const commission = calculateCommission(amount);
 
@@ -51,6 +60,10 @@ exports.initializePropertyPayment = async (req, res) => {
       }
     );
 
+    if (!paystackData.data.status) {
+      return res.status(500).json({ message: `An error occurred` });
+    }
+
     await connection.query(
       `INSERT INTO transactions 
       (property_id, account_id, reference, commission, amount, currency, type, status, created_at)
@@ -62,14 +75,22 @@ exports.initializePropertyPayment = async (req, res) => {
         commission,
         amount,
         currency,
-        property[0].type,
+        purpose,
         'pending',
       ]
     );
 
+    await connection.query(
+      `UPDATE property SET paid = TRUE, publicized = FALSE WHERE id = ?`,
+      [propertyId]
+    );
+
+    await connection.commit();
+
     return res.status(201).json({
       message: `success`,
-      paymentInfo: paystackData.authorization_url,
+      paymentLink: paystackData.data.data.authorization_url,
+      reference
     });
   } catch (error) {
     console.log(`Error initiating payment: ${error.message}`);

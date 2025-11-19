@@ -63,7 +63,7 @@ exports.getAllProperties = async (req, res) => {
 
     // FILTER 1 — SUSPENDED OWNERS
     result = result.filter((p) => {
-      if (!user) return p.suspended === 0 && p.publicized === 1;
+      if (!user) return p.suspended === 0 && p.publicized === 1 && p.draft === 0 && p.paid === 0;
 
       const isAdmin = user.role === 'admin' || user.role === 'super_admin';
       if (isAdmin) return true;
