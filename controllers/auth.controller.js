@@ -542,11 +542,22 @@ exports.getLoggedInUser = async (req, res) => {
         [user.id]
       );
 
+      // Updated: Use property_transactions instead of bookings
       const [activeBookings] = await connection.query(
-        `SELECT b.id, b.status, b.start_date, b.end_date, p.name, p.address, p.main_photo
-         FROM bookings b
-         JOIN property p ON p.id = b.property_id
-         WHERE b.account_id = ? AND b.status = 'active'`,
+        `SELECT pt.id, 
+                CASE 
+                  WHEN pt.expired = TRUE THEN 'completed'
+                  WHEN pt.expires_at < NOW() THEN 'completed' 
+                  ELSE 'active' 
+                END as status,
+                pt.created_at as start_date,
+                pt.expires_at as end_date,
+                p.name, p.address, p.main_photo
+         FROM property_transactions pt
+         JOIN property p ON p.id = pt.property_id
+         WHERE pt.account_id = ? 
+         AND pt.expired = FALSE
+         AND pt.expires_at > NOW()`,
         [user.id]
       );
 
@@ -567,7 +578,11 @@ exports.getLoggedInUser = async (req, res) => {
         [user.id]
       );
 
-      const availableBalance = transactions.reduce((sum, t) => {
+      // Calculate available balance only from successful transactions
+      const successfulTransactions = transactions.filter(
+        (t) => t.status === 'success'
+      );
+      const availableBalance = successfulTransactions.reduce((sum, t) => {
         const balance = Number(t.listed_price) - Number(t.commission);
         t.balance = balance;
         return sum + balance;
@@ -590,7 +605,7 @@ exports.getLoggedInUser = async (req, res) => {
 
     return res.status(200).json(responseData);
   } catch (error) {
-    console.error(error);
+    console.error('Error in getLoggedInUser:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
     if (connection) connection.release();

@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS `property`(
   `bedrooms` INT(5) DEFAULT NULL,
   `toilets` INT(5) DEFAULT NULL,
   `publicized` BOOLEAN DEFAULT FALSE,
-`paid` BOOLEAN DEFAULT FALSE,
+  `paid` BOOLEAN DEFAULT FALSE,
   `bathrooms` INT(5) DEFAULT NULL,
   `parking_space` INT(5) DEFAULT NULL,
   `land_size` DECIMAL(10,2) DEFAULT NULL,
@@ -110,7 +110,7 @@ CREATE TABLE  IF NOT EXISTS `property_amenities`(
 
 CREATE TABLE IF NOT EXISTS `views`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
-  `account_id` INT NOT NULL,
+  `account_id` INT DEFAULT NULL,
   `property_id` INT NOT NULL,
   FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE CASCADE

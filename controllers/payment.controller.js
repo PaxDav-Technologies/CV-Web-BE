@@ -10,7 +10,12 @@ exports.initializePropertyPayment = async (req, res) => {
   let connection;
   try {
     connection = await pool.getConnection();
-    const { currency = 'NGN', propertyId, purpose } = req.body;
+    const {
+      currency = 'NGN',
+      propertyId,
+      purpose,
+      durationMonths = 12,
+    } = req.body;
     const userId = req.user.id;
 
     if (!propertyId || !purpose) {
@@ -21,6 +26,13 @@ exports.initializePropertyPayment = async (req, res) => {
 
     if (!parseInt(propertyId)) {
       return res.status(400).json({ message: 'Invalid propertyId' });
+    }
+
+    // Validate duration for shortlet
+    if (purpose === 'shortlet' && (!durationMonths || durationMonths < 1)) {
+      return res.status(400).json({
+        message: 'Duration in months is required for shortlet payments',
+      });
     }
 
     await connection.beginTransaction();
@@ -35,6 +47,11 @@ exports.initializePropertyPayment = async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
 
+    if (property[0].paid) {
+      await connection.rollback();
+      return res.status(400).json({ message: `Property is already paid for` });
+    }
+
     const purposeValidation = validatePaymentPurpose(purpose, property[0]);
     if (!purposeValidation.valid) {
       await connection.rollback();
@@ -42,14 +59,25 @@ exports.initializePropertyPayment = async (req, res) => {
     }
 
     let amount;
+    let finalDurationMonths = durationMonths;
+
     switch (purpose) {
       case 'inspection_fee':
         amount = property[0].inspection_fee;
+        finalDurationMonths = 0;
         break;
       case 'rent':
-      case 'sale':
-      case 'shortlet':
         amount = property[0].total_price;
+        finalDurationMonths = 12;
+        break;
+      case 'sale':
+        amount = property[0].total_price;
+        finalDurationMonths = 0;
+        break;
+      case 'shortlet':
+        const pricePerYear =
+          property[0].price_per_year || property[0].total_price;
+        amount = (pricePerYear / 12) * finalDurationMonths;
         break;
       default:
         await connection.rollback();
@@ -75,6 +103,7 @@ exports.initializePropertyPayment = async (req, res) => {
           userId,
           propertyId,
           purpose,
+          durationMonths: finalDurationMonths,
           custom_fields: [
             {
               display_name: 'User ID',
@@ -90,6 +119,11 @@ exports.initializePropertyPayment = async (req, res) => {
               display_name: 'Payment Purpose',
               variable_name: 'purpose',
               value: purpose,
+            },
+            {
+              display_name: 'Duration Months',
+              variable_name: 'duration_months',
+              value: finalDurationMonths,
             },
           ],
         },
@@ -111,11 +145,10 @@ exports.initializePropertyPayment = async (req, res) => {
       });
     }
 
-    // Save transaction record
     await connection.query(
       `INSERT INTO transactions 
-      (property_id, account_id, reference, commission, amount, currency, type, status, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      (property_id, account_id, reference, commission, amount, currency, type, status, duration_months, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         propertyId,
         userId,
@@ -125,14 +158,15 @@ exports.initializePropertyPayment = async (req, res) => {
         currency,
         purpose,
         'pending',
+        finalDurationMonths,
       ]
     );
 
-    // Update property payment status only for inspection fee or full payment
     if (
       purpose === 'inspection_fee' ||
       purpose === 'rent' ||
-      purpose === 'sale'
+      purpose === 'sale' ||
+      purpose === 'shortlet'
     ) {
       await connection.query(
         `UPDATE property SET paid = TRUE, publicized = FALSE WHERE id = ?`,
@@ -147,6 +181,8 @@ exports.initializePropertyPayment = async (req, res) => {
       paymentLink: paystackResponse.data.data.authorization_url,
       reference,
       accessCode: paystackResponse.data.data.access_code,
+      amount,
+      durationMonths: finalDurationMonths,
     });
   } catch (error) {
     if (connection) await connection.rollback();
@@ -179,7 +215,6 @@ exports.verifyPayment = async (req, res) => {
     connection = await pool.getConnection();
     await connection.beginTransaction();
 
-    // Get transaction details
     const [transaction] = await connection.query(
       `SELECT * FROM transactions WHERE reference = ?`,
       [reference]
@@ -226,8 +261,16 @@ exports.verifyPayment = async (req, res) => {
     if (paymentStatus === 'success') {
       const transactionRecord = transaction[0];
 
-      const expiresAt = new Date();
-      expiresAt.setMonth(expiresAt.getMonth() + 12);
+      // Calculate expiry date based on duration_months
+      let expiresAt = new Date();
+      const durationMonths = transactionRecord.duration_months || 0;
+
+      if (durationMonths > 0) {
+        expiresAt.setMonth(expiresAt.getMonth() + durationMonths);
+      } else {
+        // For one-time payments (sale), set far future date or handle differently
+        expiresAt.setFullYear(expiresAt.getFullYear() + 100); // 100 years for permanent access
+      }
 
       await connection.query(
         `INSERT INTO property_transactions 
@@ -235,7 +278,7 @@ exports.verifyPayment = async (req, res) => {
         VALUES (?, ?, ?, ?, ?, NOW(), ?, FALSE)`,
         [
           transactionRecord.amount,
-          12,
+          durationMonths,
           transactionRecord.property_id,
           transactionRecord.account_id,
           transactionRecord.id,
@@ -259,6 +302,13 @@ exports.verifyPayment = async (req, res) => {
       message: 'Payment verification completed',
       status: paymentStatus,
       reference,
+      durationMonths: transaction[0].duration_months,
+      expiresAt:
+        paymentStatus === 'success'
+          ? new Date(
+              new Date().getMonth() + (transaction[0].duration_months || 0)
+            )
+          : null,
     });
   } catch (error) {
     if (connection) await connection.rollback();
@@ -277,7 +327,6 @@ exports.verifyPayment = async (req, res) => {
   }
 };
 
-// Webhook handler for Paystack
 exports.paystackWebhook = async (req, res) => {
   let connection;
   try {
@@ -288,7 +337,6 @@ exports.paystackWebhook = async (req, res) => {
       return res.status(400).json({ message: 'No signature provided' });
     }
 
-    // Validate webhook signature
     const crypto = require('crypto');
     const hash = crypto
       .createHmac('sha512', secret)
@@ -301,60 +349,63 @@ exports.paystackWebhook = async (req, res) => {
 
     const event = req.body;
 
+    connection = await pool.getConnection();
+    await connection.beginTransaction();
+    
+    const [transaction] = await connection.query(
+      `SELECT * FROM transactions WHERE reference = ?`,
+      [event.data.reference]
+    );
+
     if (event.event === 'charge.success') {
-      const { reference, metadata } = event.data;
+      const { reference } = event.data;
 
-      connection = await pool.getConnection();
-      await connection.beginTransaction();
 
-      // Update transaction status
+      if (transaction.length === 0) {
+        await connection.rollback();
+        return res.status(404).json({ message: 'Transaction not found' });
+      }
+
       await connection.query(
         `UPDATE transactions SET status = 'success', updated_at = NOW() WHERE reference = ?`,
         [reference]
       );
 
-      // Get transaction details
-      const [transaction] = await connection.query(
-        `SELECT * FROM transactions WHERE reference = ?`,
-        [reference]
-      );
+      const transactionRecord = transaction[0];
 
-      if (transaction.length > 0) {
-        const transactionRecord = transaction[0];
+      let expiresAt = new Date();
+      const durationMonths = transactionRecord.duration_months || 0;
 
-        // Create property transaction record
-        const expiresAt = new Date();
-        expiresAt.setMonth(expiresAt.getMonth() + 12);
-
-        await connection.query(
-          `INSERT INTO property_transactions 
-          (amount, duration_months, property_id, account_id, transaction_id, created_at, expires_at, expired) 
-          VALUES (?, ?, ?, ?, ?, NOW(), ?, FALSE)`,
-          [
-            transactionRecord.amount,
-            12,
-            transactionRecord.property_id,
-            transactionRecord.account_id,
-            transactionRecord.id,
-            expiresAt,
-          ]
-        );
-
-        // Update property status
-        await connection.query(
-          `UPDATE property SET publicized = TRUE WHERE id = ?`,
-          [transactionRecord.property_id]
-        );
+      if (durationMonths > 0) {
+        expiresAt.setMonth(expiresAt.getMonth() + durationMonths);
       } else {
-        await connection.query(
-          `UPDATE property SET paid = FALSE WHERE id = ?`,
-          [transaction[0].property_id]
-        );
+        expiresAt.setFullYear(expiresAt.getFullYear() + 100);
       }
 
-      await connection.commit();
-      connection.release();
+      await connection.query(
+        `INSERT INTO property_transactions 
+        (amount, duration_months, property_id, account_id, transaction_id, created_at, expires_at, expired) 
+        VALUES (?, ?, ?, ?, ?, NOW(), ?, FALSE)`,
+        [
+          transactionRecord.amount,
+          durationMonths,
+          transactionRecord.property_id,
+          transactionRecord.account_id,
+          transactionRecord.id,
+          expiresAt,
+        ]
+      );
+
+      await connection.query(
+        `UPDATE property SET publicized = TRUE WHERE id = ?`,
+        [transactionRecord.property_id]
+      );
+    } else {
+      await connection.query(`UPDATE property SET paid = FALSE WHERE id = ?`, [
+        transaction[0].property_id,
+      ]);
     }
+    await connection.commit();
 
     return res.status(200).json({ message: 'Webhook processed successfully' });
   } catch (error) {
@@ -367,7 +418,6 @@ exports.paystackWebhook = async (req, res) => {
   }
 };
 
-// Get payment history for user
 exports.getPaymentHistory = async (req, res) => {
   let connection;
   try {

@@ -128,6 +128,7 @@ exports.getAllProperties = async (req, res) => {
 
 exports.getPropertyById = async (req, res) => {
   let connection;
+  let shouldIncrementViews = false;
   try {
     const { id } = req.params;
     const parsedId = parseInt(id, 10);
@@ -136,8 +137,8 @@ exports.getPropertyById = async (req, res) => {
     }
 
     connection = await pool.getConnection();
+    shouldIncrementViews = true;
 
-    // 1️⃣ Get property details
     const [propertyRows] = await connection.query(
       `
       SELECT 
@@ -179,7 +180,6 @@ exports.getPropertyById = async (req, res) => {
 
     const property = propertyRows[0];
 
-    // 2️⃣ Get resources
     const [resourcesRows] = await connection.query(
       `
       SELECT r.url 
@@ -191,7 +191,6 @@ exports.getPropertyById = async (req, res) => {
     );
     property.resources = resourcesRows.map((r) => r.url);
 
-    // 3️⃣ Get amenities
     const [amenitiesRows] = await connection.query(
       `
       SELECT a.name, a.avatar
@@ -203,7 +202,6 @@ exports.getPropertyById = async (req, res) => {
     );
     property.amenities = amenitiesRows;
 
-    // 4️⃣ Get counts
     const [[viewCount]] = await connection.query(
       'SELECT COUNT(*) AS count FROM views WHERE property_id = ?',
       [parsedId]
@@ -213,12 +211,10 @@ exports.getPropertyById = async (req, res) => {
       [parsedId]
     );
 
-    // 5️⃣ Compute days listed manually
     const createdAt = new Date(property.created_at);
     const now = new Date();
     const daysListed = Math.floor((now - createdAt) / (1000 * 60 * 60 * 24));
 
-    // 6️⃣ Add computed values
     property.views_count = viewCount.count;
     property.saves_count = saveCount.count;
     property.days_listed = daysListed;
@@ -228,11 +224,33 @@ exports.getPropertyById = async (req, res) => {
     console.error(`Error getting property by ID: ${error}`);
     return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
-    if (connection) connection.release();
+    if (connection) {
+      if (shouldIncrementViews) {
+        try {
+          const userId = req.user?.id;
+
+          const [existingView] = await connection.query(
+            `SELECT id FROM views 
+             WHERE property_id = ? AND account_id = ?
+             LIMIT 1`,
+            [parseInt(req.params.id), userId]
+          );
+
+          if (existingView.length === 0) {
+            await connection.query(
+              `INSERT INTO views (property_id, account_id) 
+               VALUES (?, ?)`,
+              [parseInt(req.params.id), userId || null]
+            );
+          }
+        } catch (viewError) {
+          console.error('Error incrementing view count:', viewError);
+        }
+      }
+      connection.release();
+    }
   }
 };
-
-
 
 
 exports.createProperty = async (req, res) => {
