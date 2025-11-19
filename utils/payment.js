@@ -1,7 +1,8 @@
 const crypto = require('crypto');
 
 exports.generateReference = () => {
-  return `REF-${Date.now()}-${crypto.randomBytes(4).toString('hex')}`;
+  const randomPart = crypto.randomBytes(5).toString('hex').toUpperCase(); // 10 chars
+  return `REF-${randomPart}`;
 };
 
 exports.calculateCommission = (amount) => {

@@ -154,6 +154,7 @@ exports.getPropertyById = async (req, res) => {
         p.toilets,
         p.bathrooms,
         p.parking_space,
+        p.paid,
         p.land_size,
         p.category,
         p.type,

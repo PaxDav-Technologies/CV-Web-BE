@@ -68,7 +68,7 @@ CREATE TABLE IF NOT EXISTS `property`(
   `bedrooms` INT(5) DEFAULT NULL,
   `toilets` INT(5) DEFAULT NULL,
   `publicized` BOOLEAN DEFAULT FALSE,
-  `paid` BOOLEAN DEFAULT FALSE,
+`paid` BOOLEAN DEFAULT FALSE,
   `bathrooms` INT(5) DEFAULT NULL,
   `parking_space` INT(5) DEFAULT NULL,
   `land_size` DECIMAL(10,2) DEFAULT NULL,
