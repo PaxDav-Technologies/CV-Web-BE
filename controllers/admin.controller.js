@@ -98,27 +98,40 @@ exports.getAllUsers = async (req, res) => {
 exports.toggleSuspension = async (req, res) => {
   let connection;
   const { accountId } = req.body;
-  if(!parseInt(accountId)) {
-    return res.status(400).json({message: "account ID must be a valid ID"})
+
+  if (!parseInt(accountId)) {
+    return res.status(400).json({ message: 'Account ID must be a valid ID' });
   }
+
   try {
     connection = await pool.getConnection();
+
     const [existing] = await connection.query(
-      `
-      SELECT * FROM account where role = ? WHERE id = ?`,
-      ['agent', accountId]
+      `SELECT * FROM account WHERE role = ? AND id = ?`,
+      ['agent', parseInt(accountId)]
     );
-    if (existing.length > 0) {
-      await connection.query(`UPDATE account SET suspended = ? WHERE id = ?`, [
-        existing[0].suspended ? 0 : 1,
-        accountId
-      ]);
+
+    if (existing.length === 0) {
+      return res.status(404).json({ message: 'Agent account not found' });
     }
-    let message = existing[0].suspended ? 'suspended' : 'unsuspended';
-    return res.status(200).json({ message: `Account ${message}` });
+
+    const newSuspendedStatus = !existing[0].suspended;
+
+    await connection.query(`UPDATE account SET suspended = ? WHERE id = ?`, [
+      newSuspendedStatus,
+      parseInt(accountId),
+    ]);
+
+    const message = newSuspendedStatus ? 'suspended' : 'unsuspended';
+    return res.status(200).json({
+      message: `Account ${message} successfully`,
+      suspended: newSuspendedStatus,
+    });
   } catch (error) {
-    console.log(`Error suspending account: ${error}`);
-    return res.status(400).json({ message: 'This account cannot be suspended' });
+    console.error(`Error suspending account: ${error}`);
+    return res.status(500).json({
+      message: 'An error occurred while updating account status',
+    });
   } finally {
     if (connection) connection.release();
   }

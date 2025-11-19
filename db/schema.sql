@@ -175,6 +175,25 @@ CREATE TABLE IF NOT EXISTS `transactions`(
   INDEX `idx_reference` (`reference`)
 );
 
+CREATE TABLE IF NOT EXISTS `property_transactions` (
+  `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
+  `amount` DECIMAL(15, 2) NOT NULL,
+  `duration_months` INT NOT NULL,
+  `property_id` INT NOT NULL,
+  `account_id` INT NOT NULL,
+  `transaction_id` INT NOT NULL,
+  `created_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+  `expires_at` TIMESTAMP NOT NULL,
+  `expired` BOOLEAN DEFAULT FALSE,
+  `updated_at` TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+  FOREIGN KEY (`transaction_id`) REFERENCES `transactions`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`property_id`) REFERENCES `property`(`id`) ON DELETE CASCADE,
+  FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
+  INDEX `idx_transaction_id` (`transaction_id`),
+  INDEX `idx_account_id` (`account_id`),
+  INDEX `idx_property_id` (`property_id`)
+);
+
 CREATE TABLE IF NOT EXISTS `categories`(
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `name` VARCHAR(100) NOT NULL,
