@@ -146,8 +146,8 @@ exports.initializePropertyPayment = async (req, res) => {
         }
 
         const pricePerYear =
-          property[0].price_per_year || property[0].total_price;
-        const dailyRate = pricePerYear / 365;
+          property[0].total_price
+        const dailyRate = pricePerYear;
         amountInNGN = dailyRate * durationDays;
         finalDurationMonths = 0;
         finalDurationDays = durationDays;
