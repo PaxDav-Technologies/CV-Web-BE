@@ -6,8 +6,8 @@ const {
   validatePaymentPurpose,
 } = require('../utils/payment');
 
-
-const isValidCurrency = (currency) => ['NGN', 'USD', 'GBP', 'EUR'].includes(currency);
+const isValidCurrency = (currency) =>
+  ['NGN', 'USD', 'GBP', 'EUR'].includes(currency);
 
 const convertFromNGN = async (amountInNGN, currency) => {
   let connection;
@@ -18,12 +18,7 @@ const convertFromNGN = async (amountInNGN, currency) => {
       throw new Error('Exchange rates not found');
     }
     const rates = rows[0];
-    const CURRENCY_RATES = {
-      USD: 1 / rates.usd,
-      GBP: 1 / rates.gbp,
-      EUR: 1 / rates.eur,
-    };
-    return parseFloat((amountInNGN * CURRENCY_RATES[currency]).toFixed(2));
+    return parseFloat((amountInNGN * rates[currency.toLowerCase()]).toFixed(2));
   } catch (error) {
     console.error('Error fetching exchange rates:', error);
     throw new Error('Failed to fetch exchange rates');
@@ -145,8 +140,7 @@ exports.initializePropertyPayment = async (req, res) => {
           });
         }
 
-        const pricePerYear =
-          property[0].total_price
+        const pricePerYear = property[0].total_price;
         const dailyRate = pricePerYear;
         amountInNGN = dailyRate * durationDays;
         finalDurationMonths = 0;
@@ -181,7 +175,10 @@ exports.initializePropertyPayment = async (req, res) => {
       'https://api.paystack.co/transaction/initialize',
       {
         email: req.user.email,
-        amount: Math.round(amountInUserCurrency * 100),
+        amount:
+          currency === 'NGN'
+            ? Math.round(amountInNGN * 100)
+            : Math.round(amountInUserCurrency * 100),
         currency: currency,
         reference,
         metadata: {
@@ -300,8 +297,8 @@ exports.initializePropertyPayment = async (req, res) => {
       startDate: finalStartDate,
       endDate: finalEndDate,
       conversionInfo: {
-        exchangeRate: CURRENCY_RATES[currency],
-        note: `Amount displayed in ${currency}. Paystack will handle currency conversion during payment.`
+        // exchangeRate: CURRENCY_RATES[currency],
+        note: `Amount displayed in ${currency}. Paystack will handle currency conversion during payment.`,
       },
     });
   } catch (error) {
