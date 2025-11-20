@@ -234,9 +234,17 @@ CREATE TABLE IF NOT EXISTS `blog_categories`(
 );
 
 CREATE TABLE IF NOT EXISTS `exchange_rates` (
-  id INT AUTO_INCREMENT PRIMARY KEY,
-  usd FLOAT,
-  eur FLOAT,
-  gbp FLOAT,
-  last_updated DATE
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `usd` FLOAT,
+  `eur` FLOAT,
+  `gbp` FLOAT,
+  `last_updated` DATE
 );
+
+CREATE TABLE IF NOT EXISTS `contacts` (
+  `id` INT AUTO_INCREMENT PRIMARY KEY,
+  `name` VARCHAR(50) NOT NULL,
+  `email` VARCHAR(30) NOT NULL,
+  `subject` VARCHAR(70) NOT NULL,
+  `message` LONGTEXT NOT NULL
+)
