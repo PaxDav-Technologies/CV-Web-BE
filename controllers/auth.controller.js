@@ -16,9 +16,6 @@ exports.googleRegister = (req, res, next) => {
     'google-register',
     { session: false, prompt: 'select_account' },
     async (err, user, info) => {
-      // console.log(user);
-      // console.log(err);
-      // console.log(info)
       if (err) {
         return res.redirect(
           `${

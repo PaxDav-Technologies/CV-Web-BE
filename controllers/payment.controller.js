@@ -6,6 +6,21 @@ const {
   validatePaymentPurpose,
 } = require('../utils/payment');
 
+// Currency conversion rates (from NGN to other currencies)
+const CURRENCY_RATES = {
+  NGN: 1,
+  USD: 0.00063, // 1 NGN = 0.00063 USD (example: 1000 NGN = 0.63 USD)
+  GBP: 0.00050, // 1 NGN = 0.00050 GBP (example: 1000 NGN = 0.50 GBP)
+};
+
+// Validate currency
+const isValidCurrency = (currency) => ['NGN', 'USD', 'GBP'].includes(currency);
+
+// Convert amount from NGN to target currency for display
+const convertFromNGN = (amountInNGN, currency) => {
+  return parseFloat((amountInNGN * CURRENCY_RATES[currency]).toFixed(2));
+};
+
 exports.initializePropertyPayment = async (req, res) => {
   let connection;
   try {
@@ -15,6 +30,8 @@ exports.initializePropertyPayment = async (req, res) => {
       propertyId,
       purpose,
       durationMonths = 12,
+      durationDays = 1,
+      startDate = new Date(),
     } = req.body;
     const userId = req.user.id;
 
@@ -28,10 +45,10 @@ exports.initializePropertyPayment = async (req, res) => {
       return res.status(400).json({ message: 'Invalid propertyId' });
     }
 
-    // Validate duration for shortlet
-    if (purpose === 'shortlet' && (!durationMonths || durationMonths < 1)) {
+    // Validate currency
+    if (!isValidCurrency(currency)) {
       return res.status(400).json({
-        message: 'Duration in months is required for shortlet payments',
+        message: 'Invalid currency. Supported currencies: NGN, USD, GBP',
       });
     }
 
@@ -47,9 +64,25 @@ exports.initializePropertyPayment = async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
 
-    if (property[0].paid) {
+    if (property[0].paid && purpose !== 'inspection_fee') {
       await connection.rollback();
-      return res.status(400).json({ message: `Property is already paid for` });
+      return res.status(400).json({
+        message: `Property is already paid for. You cannot make another payment for this property.`,
+      });
+    }
+
+    const [existingSuccessfulTx] = await connection.query(
+      `SELECT id FROM transactions 
+       WHERE property_id = ? AND status = 'success' AND type != 'inspection_fee'
+       LIMIT 1`,
+      [propertyId]
+    );
+
+    if (existingSuccessfulTx.length > 0 && purpose !== 'inspection_fee') {
+      await connection.rollback();
+      return res.status(400).json({
+        message: `This property already has a successful payment. You cannot make another payment.`,
+      });
     }
 
     const purposeValidation = validatePaymentPurpose(purpose, property[0]);
@@ -58,52 +91,102 @@ exports.initializePropertyPayment = async (req, res) => {
       return res.status(400).json({ message: purposeValidation.message });
     }
 
-    let amount;
-    let finalDurationMonths = durationMonths;
+    let amountInNGN; // Always store and calculate in NGN
+    let finalDurationMonths = 0;
+    let finalDurationDays = 0;
+    let finalStartDate = new Date(startDate);
+    let finalEndDate = new Date();
 
     switch (purpose) {
       case 'inspection_fee':
-        amount = property[0].inspection_fee;
+        amountInNGN = property[0].inspection_fee;
         finalDurationMonths = 0;
+        finalDurationDays = 0;
         break;
+
       case 'rent':
-        amount = property[0].total_price;
-        finalDurationMonths = 12;
+        if (!durationMonths || durationMonths < 1) {
+          await connection.rollback();
+          return res.status(400).json({
+            message: 'Duration in months is required for rent payments',
+          });
+        }
+
+        amountInNGN = property[0].total_price * durationMonths;
+        finalDurationMonths = durationMonths;
+        finalDurationDays = 0;
+        finalEndDate = new Date(finalStartDate);
+        finalEndDate.setMonth(finalEndDate.getMonth() + durationMonths);
         break;
+
       case 'sale':
-        amount = property[0].total_price;
+        amountInNGN = property[0].total_price;
         finalDurationMonths = 0;
+        finalDurationDays = 0;
+        finalEndDate = new Date();
+        finalEndDate.setFullYear(finalEndDate.getFullYear() + 100);
         break;
+
       case 'shortlet':
+        if (!durationDays || durationDays < 1) {
+          await connection.rollback();
+          return res.status(400).json({
+            message: 'Duration in days is required for shortlet payments',
+          });
+        }
+
         const pricePerYear =
           property[0].price_per_year || property[0].total_price;
-        amount = (pricePerYear / 12) * finalDurationMonths;
+        const dailyRate = pricePerYear / 365;
+        amountInNGN = dailyRate * durationDays;
+        finalDurationMonths = 0;
+        finalDurationDays = durationDays;
+        finalEndDate = new Date(finalStartDate);
+        finalEndDate.setDate(finalEndDate.getDate() + durationDays);
         break;
+
       default:
         await connection.rollback();
         return res.status(400).json({ message: 'Invalid payment purpose' });
     }
 
-    if (!amount || amount <= 0) {
+    if (!amountInNGN || amountInNGN <= 0) {
       await connection.rollback();
       return res.status(400).json({ message: 'Invalid amount for payment' });
     }
 
+    if (finalStartDate < new Date().getMonth()) {
+      await connection.rollback();
+      return res.status(400).json({
+        message: 'Start date cannot be in the past',
+      });
+    }
+
     const reference = generateReference();
-    const commission = calculateCommission(amount);
+    const commission = calculateCommission(amountInNGN);
+
+    // Convert amount to user's chosen currency for display and Paystack
+    const amountInUserCurrency = convertFromNGN(amountInNGN, currency);
 
     const paystackResponse = await axios.post(
       'https://api.paystack.co/transaction/initialize',
       {
         email: req.user.email,
-        amount: Math.round(amount * 100), // Convert to kobo
-        currency,
+        amount: Math.round(amountInNGN * 100), // Always send amount in kobo (NGN) to Paystack
+        currency: currency, // Let Paystack handle currency conversion
         reference,
         metadata: {
           userId,
           propertyId,
           purpose,
+          originalCurrency: 'NGN',
+          originalAmount: amountInNGN,
+          displayCurrency: currency,
+          displayAmount: amountInUserCurrency,
           durationMonths: finalDurationMonths,
+          durationDays: finalDurationDays,
+          startDate: finalStartDate.toISOString(),
+          endDate: finalEndDate.toISOString(),
           custom_fields: [
             {
               display_name: 'User ID',
@@ -121,9 +204,39 @@ exports.initializePropertyPayment = async (req, res) => {
               value: purpose,
             },
             {
+              display_name: 'Original Amount (NGN)',
+              variable_name: 'original_amount_ngn',
+              value: amountInNGN,
+            },
+            {
+              display_name: 'Display Currency',
+              variable_name: 'display_currency',
+              value: currency,
+            },
+            {
+              display_name: 'Display Amount',
+              variable_name: 'display_amount',
+              value: amountInUserCurrency,
+            },
+            {
               display_name: 'Duration Months',
               variable_name: 'duration_months',
               value: finalDurationMonths,
+            },
+            {
+              display_name: 'Duration Days',
+              variable_name: 'duration_days',
+              value: finalDurationDays,
+            },
+            {
+              display_name: 'Start Date',
+              variable_name: 'start_date',
+              value: finalStartDate.toISOString(),
+            },
+            {
+              display_name: 'End Date',
+              variable_name: 'end_date',
+              value: finalEndDate.toISOString(),
             },
           ],
         },
@@ -145,34 +258,22 @@ exports.initializePropertyPayment = async (req, res) => {
       });
     }
 
+    // Store the original NGN amount in database
     await connection.query(
       `INSERT INTO transactions 
-      (property_id, account_id, reference, commission, amount, currency, type, status, duration_months, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
+      (property_id, account_id, reference, commission, amount, currency, type, status, created_at)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
       [
         propertyId,
         userId,
         reference,
         commission,
-        amount,
-        currency,
+        amountInNGN, // Store original NGN amount
+        'NGN', // Always store base currency as NGN
         purpose,
         'pending',
-        finalDurationMonths,
       ]
     );
-
-    if (
-      purpose === 'inspection_fee' ||
-      purpose === 'rent' ||
-      purpose === 'sale' ||
-      purpose === 'shortlet'
-    ) {
-      await connection.query(
-        `UPDATE property SET paid = TRUE, publicized = FALSE WHERE id = ?`,
-        [propertyId]
-      );
-    }
 
     await connection.commit();
 
@@ -181,8 +282,18 @@ exports.initializePropertyPayment = async (req, res) => {
       paymentLink: paystackResponse.data.data.authorization_url,
       reference,
       accessCode: paystackResponse.data.data.access_code,
-      amount,
+      amount: amountInUserCurrency, // Return converted amount to user
+      currency: currency, // Return user's chosen currency
+      originalAmount: amountInNGN, // For reference
+      originalCurrency: 'NGN', // For reference
       durationMonths: finalDurationMonths,
+      durationDays: finalDurationDays,
+      startDate: finalStartDate,
+      endDate: finalEndDate,
+      conversionInfo: {
+        exchangeRate: CURRENCY_RATES[currency],
+        note: `Amount displayed in ${currency}. Paystack will handle currency conversion during payment.`
+      },
     });
   } catch (error) {
     if (connection) await connection.rollback();
@@ -261,55 +372,65 @@ exports.verifyPayment = async (req, res) => {
     if (paymentStatus === 'success') {
       const transactionRecord = transaction[0];
 
-      // Calculate expiry date based on duration_months
-      let expiresAt = new Date();
-      const durationMonths = transactionRecord.duration_months || 0;
-
-      if (durationMonths > 0) {
-        expiresAt.setMonth(expiresAt.getMonth() + durationMonths);
-      } else {
-        // For one-time payments (sale), set far future date or handle differently
-        expiresAt.setFullYear(expiresAt.getFullYear() + 100); // 100 years for permanent access
-      }
+      const metadata = paymentData.metadata || {};
+      const durationMonths = metadata.durationMonths || 0;
+      const durationDays = metadata.durationDays || 0;
+      const startDate = metadata.startDate
+        ? new Date(metadata.startDate)
+        : new Date();
+      const endDate = metadata.endDate
+        ? new Date(metadata.endDate)
+        : new Date();
 
       await connection.query(
         `INSERT INTO property_transactions 
-        (amount, duration_months, property_id, account_id, transaction_id, created_at, expires_at, expired) 
-        VALUES (?, ?, ?, ?, ?, NOW(), ?, FALSE)`,
+        (amount, duration_months, duration_days, property_id, account_id, transaction_id, 
+         start_date, end_date, created_at, expires_at, expired) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, FALSE)`,
         [
-          transactionRecord.amount,
+          transactionRecord.amount, // Store original NGN amount
           durationMonths,
+          durationDays,
           transactionRecord.property_id,
           transactionRecord.account_id,
           transactionRecord.id,
-          expiresAt,
+          startDate,
+          endDate,
+          endDate,
         ]
       );
 
-      await connection.query(
-        `UPDATE property SET publicized = TRUE WHERE id = ?`,
-        [transactionRecord.property_id]
-      );
-    } else {
-      await connection.query(`UPDATE property SET paid = FALSE WHERE id = ?`, [
-        transaction[0].property_id,
-      ]);
+      if (transactionRecord.type !== 'inspection_fee') {
+        await connection.query(
+          `UPDATE property SET paid = TRUE, publicized = TRUE WHERE id = ?`,
+          [transactionRecord.property_id]
+        );
+      }
     }
 
     await connection.commit();
 
-    return res.status(200).json({
+    const [propertyTransaction] = await connection.query(
+      `SELECT * FROM property_transactions WHERE transaction_id = ?`,
+      [transaction[0].id]
+    );
+
+    const responseData = {
       message: 'Payment verification completed',
       status: paymentStatus,
       reference,
-      durationMonths: transaction[0].duration_months,
-      expiresAt:
-        paymentStatus === 'success'
-          ? new Date(
-              new Date().getMonth() + (transaction[0].duration_months || 0)
-            )
-          : null,
-    });
+      amount: transaction[0].amount, // Return NGN amount
+      currency: 'NGN', // Return base currency
+    };
+
+    if (propertyTransaction.length > 0) {
+      responseData.durationMonths = propertyTransaction[0].duration_months;
+      responseData.durationDays = propertyTransaction[0].duration_days;
+      responseData.startDate = propertyTransaction[0].start_date;
+      responseData.endDate = propertyTransaction[0].end_date;
+    }
+
+    return res.status(200).json(responseData);
   } catch (error) {
     if (connection) await connection.rollback();
     console.error('Error verifying payment:', error.message);
@@ -349,17 +470,16 @@ exports.paystackWebhook = async (req, res) => {
 
     const event = req.body;
 
-    connection = await pool.getConnection();
-    await connection.beginTransaction();
-    
-    const [transaction] = await connection.query(
-      `SELECT * FROM transactions WHERE reference = ?`,
-      [event.data.reference]
-    );
-
     if (event.event === 'charge.success') {
-      const { reference } = event.data;
+      const { reference, metadata } = event.data;
 
+      connection = await pool.getConnection();
+      await connection.beginTransaction();
+
+      const [transaction] = await connection.query(
+        `SELECT * FROM transactions WHERE reference = ?`,
+        [reference]
+      );
 
       if (transaction.length === 0) {
         await connection.rollback();
@@ -373,39 +493,42 @@ exports.paystackWebhook = async (req, res) => {
 
       const transactionRecord = transaction[0];
 
-      let expiresAt = new Date();
-      const durationMonths = transactionRecord.duration_months || 0;
-
-      if (durationMonths > 0) {
-        expiresAt.setMonth(expiresAt.getMonth() + durationMonths);
-      } else {
-        expiresAt.setFullYear(expiresAt.getFullYear() + 100);
-      }
+      const durationMonths = metadata.durationMonths || 0;
+      const durationDays = metadata.durationDays || 0;
+      const startDate = metadata.startDate
+        ? new Date(metadata.startDate)
+        : new Date();
+      const endDate = metadata.endDate
+        ? new Date(metadata.endDate)
+        : new Date();
 
       await connection.query(
         `INSERT INTO property_transactions 
-        (amount, duration_months, property_id, account_id, transaction_id, created_at, expires_at, expired) 
-        VALUES (?, ?, ?, ?, ?, NOW(), ?, FALSE)`,
+        (amount, duration_months, duration_days, property_id, account_id, transaction_id, 
+         start_date, end_date, created_at, expires_at, expired) 
+        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, FALSE)`,
         [
           transactionRecord.amount,
           durationMonths,
+          durationDays,
           transactionRecord.property_id,
           transactionRecord.account_id,
           transactionRecord.id,
-          expiresAt,
+          startDate,
+          endDate,
+          endDate,
         ]
       );
 
-      await connection.query(
-        `UPDATE property SET publicized = TRUE WHERE id = ?`,
-        [transactionRecord.property_id]
-      );
-    } else {
-      await connection.query(`UPDATE property SET paid = FALSE WHERE id = ?`, [
-        transaction[0].property_id,
-      ]);
+      if (transactionRecord.type !== 'inspection_fee') {
+        await connection.query(
+          `UPDATE property SET paid = TRUE, publicized = TRUE WHERE id = ?`,
+          [transactionRecord.property_id]
+        );
+      }
+
+      await connection.commit();
     }
-    await connection.commit();
 
     return res.status(200).json({ message: 'Webhook processed successfully' });
   } catch (error) {
@@ -457,5 +580,44 @@ exports.getPaymentHistory = async (req, res) => {
     return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
     if (connection) connection.release();
+  }
+};
+
+// Helper function to get supported currencies
+exports.getSupportedCurrencies = async (req, res) => {
+  try {
+    const currencies = [
+      { code: 'NGN', name: 'Nigerian Naira', symbol: '₦' },
+      { code: 'USD', name: 'US Dollar', symbol: '$' },
+      { code: 'GBP', name: 'British Pound', symbol: '£' },
+    ];
+
+    return res.status(200).json({
+      message: 'Supported currencies retrieved successfully',
+      currencies,
+      exchangeRates: CURRENCY_RATES,
+    });
+  } catch (error) {
+    console.error('Error getting currencies:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  }
+};
+
+exports.getCurrencyRates = async (req, res) => {
+  try {
+    const rates = {
+      NGN: { rate: 1, symbol: '₦', name: 'Nigerian Naira' },
+      USD: { rate: CURRENCY_RATES.USD, symbol: '$', name: 'US Dollar' },
+      GBP: { rate: CURRENCY_RATES.GBP, symbol: '£', name: 'British Pound' },
+    };
+
+    return res.status(200).json({
+      message: 'Currency rates retrieved successfully',
+      rates,
+      baseCurrency: 'NGN',
+    });
+  } catch (error) {
+    console.error('Error getting currency rates:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   }
 };

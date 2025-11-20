@@ -6,7 +6,6 @@ exports.getAllProperties = async (req, res) => {
   try {
     connection = await pool.getConnection();
 
-    // Fetch properties + owner suspended status
     const sql = `
       SELECT 
         p.*,
@@ -17,7 +16,6 @@ exports.getAllProperties = async (req, res) => {
 
     const [properties] = await connection.query(sql);
 
-    // Fetch amenities separately
     const [amenityRows] = await connection.query(`
       SELECT 
         pa.property_id,
@@ -26,7 +24,6 @@ exports.getAllProperties = async (req, res) => {
       JOIN amenities a ON a.id = pa.amenity_id
     `);
 
-    // Map amenities to their properties
     const amenityMap = {};
     for (const row of amenityRows) {
       if (!amenityMap[row.property_id]) {
@@ -35,13 +32,11 @@ exports.getAllProperties = async (req, res) => {
       amenityMap[row.property_id].push(row.name);
     }
 
-    // Attach amenities to properties
     const enriched = properties.map((p) => ({
       ...p,
       amenities: amenityMap[p.id] || [],
     }));
 
-    // Now apply filtering in JS
     let result = [...enriched];
 
     const {
@@ -69,7 +64,7 @@ exports.getAllProperties = async (req, res) => {
 
       if (user && p.owner_id === user.id) return true;
 
-      return p.suspended === 0 && p.publicized === 1 && p.draft === 0;
+      return p.suspended === 0 && p.draft === 0 && p.publicized === 1;
     });
 
     if (bedrooms) result = result.filter((p) => p.bedrooms == bedrooms);
@@ -95,7 +90,6 @@ exports.getAllProperties = async (req, res) => {
       );
     }
 
-    // FILTER 3 — Amenities
     if (amenities) {
       const required = amenities.split(',').map((a) => a.trim().toLowerCase());
       result = result.filter((p) =>
@@ -105,7 +99,6 @@ exports.getAllProperties = async (req, res) => {
       );
     }
 
-    // Pagination
     const lim = Math.min(Math.max(parseInt(limit, 10), 1), 1000);
     const pg = Math.max(parseInt(page, 10), 1);
     const offset = (pg - 1) * lim;

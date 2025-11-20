@@ -182,7 +182,10 @@ CREATE TABLE IF NOT EXISTS `transactions`(
 CREATE TABLE IF NOT EXISTS `property_transactions` (
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `amount` DECIMAL(15, 2) NOT NULL,
-  `duration_months` INT NOT NULL,
+  `duration_months` INT DEFAULT 0,
+  `duration_days` INT DEFAULT 0,
+  `start_date` DATETIME DEFAULT NULL,
+  `end_date` DATETIME DEFAULT NULL,
   `property_id` INT NOT NULL,
   `account_id` INT NOT NULL,
   `transaction_id` INT NOT NULL,
