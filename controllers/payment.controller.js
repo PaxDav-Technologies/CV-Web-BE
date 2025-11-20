@@ -381,28 +381,37 @@ exports.verifyPayment = async (req, res) => {
       const metadata = paymentData.metadata || {};
       const durationMonths = metadata.durationMonths || 0;
       const durationDays = metadata.durationDays || 0;
+
       const startDate = metadata.startDate
         ? new Date(metadata.startDate)
         : new Date();
+
       const endDate = metadata.endDate
         ? new Date(metadata.endDate)
         : new Date();
 
+      // Convert endDate to MySQL timestamp
+      const mysqlEndDate = endDate.toISOString().slice(0, 19).replace('T', ' ');
+      const mysqlStartDate = startDate
+        .toISOString()
+        .slice(0, 19)
+        .replace('T', ' ');
+
       await connection.query(
         `INSERT INTO property_transactions 
-        (amount, duration_months, duration_days, property_id, account_id, transaction_id, 
-         start_date, end_date, created_at, expires_at, expired) 
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, FALSE)`,
+      (amount, duration_months, duration_days, property_id, account_id, transaction_id, 
+       start_date, end_date, created_at, expires_at, expired) 
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, FALSE)`,
         [
-          transactionRecord.amount, // Store original NGN amount
+          transactionRecord.amount,
           durationMonths,
           durationDays,
           transactionRecord.property_id,
           transactionRecord.account_id,
           transactionRecord.id,
-          startDate,
-          endDate,
-          endDate,
+          mysqlStartDate,
+          mysqlEndDate,
+          mysqlEndDate,
         ]
       );
 

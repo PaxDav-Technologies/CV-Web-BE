@@ -17,15 +17,21 @@ CREATE TABLE IF NOT EXISTS `agents` (
   `account_id` INT NOT NULL,
   `professional_type` ENUM('real_estate_agent', 'property_manager', 'developer') DEFAULT 'real_estate_agent',
   `experience_level` ENuM('beginner', 'intermediate', 'expert') DEFAULT 'beginner',
-  `phone_number` VARCHAR(30) NOT NULL,
+  `phone_number` VARCHAR(30) DEFAULT NULL,
   FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
   INDEX `idx_account_id` (`account_id`)
 );
 
+-- ALTER TABLE `agents`
+--   MODIFY COLUMN `phone_number` VARCHAR(30) DEFAULT NULL;
+
+-- ALTER TABLE `admins`
+--   MODIFY COLUMN `phone_number` VARCHAR(30) DEFAULT NULL;
+
 CREATE TABLE IF NOT EXISTS `admins` (
   `id` INT AUTO_INCREMENT NOT NULL PRIMARY KEY,
   `account_id` INT NOT NULL,
-  `phone_number` VARCHAR(30) NOT NULL,
+  `phone_number` VARCHAR(30) DEFAULT NULL,
   `username` VARCHAR(50) NOT NULL,
   FOREIGN KEY (`account_id`) REFERENCES `account`(`id`) ON DELETE CASCADE,
   INDEX `idx_account_id` (`account_id`)
