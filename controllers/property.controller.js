@@ -118,7 +118,6 @@ exports.getAllProperties = async (req, res) => {
   }
 };
 
-
 exports.getPropertyById = async (req, res) => {
   let connection;
   let shouldIncrementViews = false;
@@ -158,9 +157,11 @@ exports.getPropertyById = async (req, res) => {
         a.lastname AS owner_lastname,
         a.avatar AS owner_avatar,
         c.longitude,
-        c.latitude
+        c.latitude,
+        ag.phone_number
       FROM property p
       LEFT JOIN account a ON p.owner_id = a.id
+      LEFT JOIN agents ag ON p.owner_id = ag.account_id
       LEFT JOIN coordinates c ON p.coordinates_id = c.id
       WHERE p.id = ?
       `,
@@ -244,7 +245,6 @@ exports.getPropertyById = async (req, res) => {
     }
   }
 };
-
 
 exports.createProperty = async (req, res) => {
   let connection;
@@ -478,7 +478,6 @@ exports.createProperty = async (req, res) => {
   }
 };
 
-
 exports.updateProperty = async (req, res) => {
   let connection;
   try {
@@ -585,7 +584,6 @@ exports.deleteProperty = async (req, res) => {
     if (connection) connection.release();
   }
 };
-
 
 exports.addAmenities = async (req, res) => {
   let connection;

@@ -232,3 +232,11 @@ CREATE TABLE IF NOT EXISTS `blog_categories`(
   FOREIGN KEY (`blog_id`) REFERENCES `blogs`(`id`) ON DELETE CASCADE,
   FOREIGN KEY (`category_id`) REFERENCES `categories`(`id`) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS `exchange_rates` (
+  id INT AUTO_INCREMENT PRIMARY KEY,
+  usd FLOAT,
+  eur FLOAT,
+  gbp FLOAT,
+  last_updated DATE
+);

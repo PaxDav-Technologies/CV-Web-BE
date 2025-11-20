@@ -15,8 +15,9 @@ passport.use(
         prompt: 'select_account',
       },
     },
-    async (accessToken, refreshToken, profile, done) => {
+    async (req, accessToken, refreshToken, profile, done) => {
       const connection = await pool.getConnection();
+      const userType = req.query.state || 'customer';
       try {
         const email = profile.emails[0].value;
         const [existingUsers] = await connection.query(
@@ -36,7 +37,7 @@ passport.use(
             email,
             'google',
             profile.photos?.[0]?.value || '',
-            'customer',
+            userType,
             true,
           ]
         );

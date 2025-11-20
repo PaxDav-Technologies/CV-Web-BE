@@ -6,19 +6,30 @@ const {
   validatePaymentPurpose,
 } = require('../utils/payment');
 
-// Currency conversion rates (from NGN to other currencies)
-const CURRENCY_RATES = {
-  NGN: 1,
-  USD: 0.00063, // 1 NGN = 0.00063 USD (example: 1000 NGN = 0.63 USD)
-  GBP: 0.00050, // 1 NGN = 0.00050 GBP (example: 1000 NGN = 0.50 GBP)
-};
 
-// Validate currency
-const isValidCurrency = (currency) => ['NGN', 'USD', 'GBP'].includes(currency);
+const isValidCurrency = (currency) => ['NGN', 'USD', 'GBP', 'EUR'].includes(currency);
 
-// Convert amount from NGN to target currency for display
-const convertFromNGN = (amountInNGN, currency) => {
-  return parseFloat((amountInNGN * CURRENCY_RATES[currency]).toFixed(2));
+const convertFromNGN = async (amountInNGN, currency) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+    const [rows] = await connection.query('SELECT * FROM exchange_rates');
+    if (rows.length === 0) {
+      throw new Error('Exchange rates not found');
+    }
+    const rates = rows[0];
+    const CURRENCY_RATES = {
+      USD: 1 / rates.usd,
+      GBP: 1 / rates.gbp,
+      EUR: 1 / rates.eur,
+    };
+    return parseFloat((amountInNGN * CURRENCY_RATES[currency]).toFixed(2));
+  } catch (error) {
+    console.error('Error fetching exchange rates:', error);
+    throw new Error('Failed to fetch exchange rates');
+  } finally {
+    if (connection) connection.release();
+  }
 };
 
 exports.initializePropertyPayment = async (req, res) => {
@@ -45,7 +56,6 @@ exports.initializePropertyPayment = async (req, res) => {
       return res.status(400).json({ message: 'Invalid propertyId' });
     }
 
-    // Validate currency
     if (!isValidCurrency(currency)) {
       return res.status(400).json({
         message: 'Invalid currency. Supported currencies: NGN, USD, GBP',
@@ -91,7 +101,7 @@ exports.initializePropertyPayment = async (req, res) => {
       return res.status(400).json({ message: purposeValidation.message });
     }
 
-    let amountInNGN; // Always store and calculate in NGN
+    let amountInNGN;
     let finalDurationMonths = 0;
     let finalDurationDays = 0;
     let finalStartDate = new Date(startDate);
@@ -165,15 +175,14 @@ exports.initializePropertyPayment = async (req, res) => {
     const reference = generateReference();
     const commission = calculateCommission(amountInNGN);
 
-    // Convert amount to user's chosen currency for display and Paystack
-    const amountInUserCurrency = convertFromNGN(amountInNGN, currency);
+    const amountInUserCurrency = await convertFromNGN(amountInNGN, currency);
 
     const paystackResponse = await axios.post(
       'https://api.paystack.co/transaction/initialize',
       {
         email: req.user.email,
-        amount: Math.round(amountInNGN * 100), // Always send amount in kobo (NGN) to Paystack
-        currency: currency, // Let Paystack handle currency conversion
+        amount: Math.round(amountInUserCurrency * 100),
+        currency: currency,
         reference,
         metadata: {
           userId,
@@ -604,20 +613,28 @@ exports.getSupportedCurrencies = async (req, res) => {
 };
 
 exports.getCurrencyRates = async (req, res) => {
+  let connection;
   try {
-    const rates = {
-      NGN: { rate: 1, symbol: '₦', name: 'Nigerian Naira' },
-      USD: { rate: CURRENCY_RATES.USD, symbol: '$', name: 'US Dollar' },
-      GBP: { rate: CURRENCY_RATES.GBP, symbol: '£', name: 'British Pound' },
-    };
+    connection = await pool.getConnection();
+    const [rows] = await connection.query('SELECT * FROM exchange_rates');
+
+    if (rows.length === 0) {
+      return res.status(404).json({ message: 'Exchange rates not found' });
+    }
 
     return res.status(200).json({
       message: 'Currency rates retrieved successfully',
-      rates,
-      baseCurrency: 'NGN',
+      rates: {
+        USD: rows[0].usd,
+        EUR: rows[0].eur,
+        GBP: rows[0].gbp,
+        lastUpdated: rows[0].last_updated,
+      },
     });
   } catch (error) {
     console.error('Error getting currency rates:', error);
     return res.status(500).json({ message: 'Internal Server Error' });
+  } finally {
+    if (connection) connection.release();
   }
 };

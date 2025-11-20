@@ -11,7 +11,7 @@ const {
   resendVerificationCode,
   uploadAvatar,
   googleRegister,
-  googleLogin
+  googleLogin,
 } = require('../controllers/auth.controller');
 const {
   authenticate,
@@ -36,13 +36,14 @@ router.get(
   })
 );
 
-router.get(
-  '/google/register',
+router.get('/google/register', (req, res, next) => {
+  const userType = req.query.type || 'customer';
   passport.authenticate('google-register', {
     scope: ['profile', 'email'],
     session: false,
-  })
-);
+    state: userType,
+  })(req, res, next);
+});
 
 router.get('/google/register/callback', googleRegister);
 
@@ -63,8 +64,13 @@ router.post('/resend-verification', resendVerificationCode);
 router.post('/forgot-password', forgotPassword);
 router.post('/verify-forgot-password', verifyForgotPasswordCode);
 router.post('/reset-password', authenticate, resetPassword);
-router.post('/upload-avatar', authenticate, upload.single('avatar'), uploadAvatar);
+router.post(
+  '/upload-avatar',
+  authenticate,
+  upload.single('avatar'),
+  uploadAvatar
+);
 
-router.get('/me', authenticate, getLoggedInUser)
+router.get('/me', authenticate, getLoggedInUser);
 
 module.exports = router;
