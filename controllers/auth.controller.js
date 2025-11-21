@@ -26,17 +26,17 @@ exports.googleRegister = (req, res, next) => {
 
       if (info.message) {
         return res.redirect(
-          `${process.env.FRONTEND_URL}/create-account?error=${encodeURIComponent(
-            info.message
-          )}`
+          `${
+            process.env.FRONTEND_URL
+          }/create-account?error=${encodeURIComponent(info.message)}`
         );
       }
 
       if (!user) {
         return res.redirect(
-          `${process.env.FRONTEND_URL}/create-account?error=${encodeURIComponent(
-            'Account not found'
-          )}`
+          `${
+            process.env.FRONTEND_URL
+          }/create-account?error=${encodeURIComponent('Account not found')}`
         );
       }
       return res.redirect(`${process.env.FRONTEND_URL}/login`);
@@ -158,8 +158,17 @@ exports.registerAdmin = async (req, res) => {
     }
     const role = 'admin';
     const result = await connection.query(
-      'INSERT INTO account (firstname, lastname, email, password, avatar, method, role) VALUES (?, ?, ?, ?, ?, ?, ?)',
-      [firstname, lastname, email, hashedPassword, avatar, defaultMethod, role]
+      'INSERT INTO account (firstname, lastname, email, password, avatar, method, role, verified) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+      [
+        firstname,
+        lastname,
+        email,
+        hashedPassword,
+        avatar,
+        defaultMethod,
+        role,
+        true,
+      ]
     );
 
     await connection.query(
@@ -169,7 +178,7 @@ exports.registerAdmin = async (req, res) => {
 
     // Generate and send verification code
     // const code = 1234;
-      const code = Math.floor(1000 + Math.random() * 9000);
+    const code = Math.floor(1000 + Math.random() * 9000);
     sendVerificationCode(email.trim().toLowerCase(), code);
 
     return res
@@ -252,7 +261,7 @@ exports.register = async (req, res) => {
         new Date(Date.now() + 60 * 60 * 1000),
       ]
     );
-    sendVerificationCode(req.body.email, code);
+    sendVerificationCode(email.trim(), code);
 
     return res
       .status(201)

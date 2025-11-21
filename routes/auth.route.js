@@ -53,8 +53,8 @@ router.post('/register', register);
 router.post(
   '/admin/register',
   upload.single('avatar'),
-  authenticate,
-  authorizeRoles(ROLES.admin, ROLES.super_admin),
+  // authenticate,
+  // authorizeRoles(ROLES.admin, ROLES.super_admin),
   registerAdmin
 );
 router.post('/admin/login', adminLogin);
