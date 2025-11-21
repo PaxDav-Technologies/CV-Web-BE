@@ -168,9 +168,9 @@ exports.registerAdmin = async (req, res) => {
     );
 
     // Generate and send verification code
-    const code = 1234;
-    // const code = Math.floor(1000 + Math.random() * 9000); // 4-digit code
-    sendVerificationCode(email, code);
+    // const code = 1234;
+      const code = Math.floor(1000 + Math.random() * 9000);
+    sendVerificationCode(email.trim().toLowerCase(), code);
 
     return res
       .status(201)
@@ -213,7 +213,7 @@ exports.register = async (req, res) => {
       return res.status(400).json({ message: 'Email already in use' });
     }
 
-    const hashedPasssword = await bcrypt.hash(req.body.password, 10);
+    const hashedPasssword = await bcrypt.hash(req.body.password.trim(), 10);
 
     const defaultImage = `https://imgs.search.brave.com/7JPVrX1-rrex4c53w-1YqddoSVInG8opEOsfUQYuBpU/rs:fit:860:0:0:0/g:ce/aHR0cHM6Ly9jZG4u/dmVjdG9yc3RvY2su/Y29tL2kvNTAwcC83/MC8wMS9kZWZhdWx0/LW1hbGUtYXZhdGFy/LXByb2ZpbGUtaWNv/bi1ncmV5LXBob3Rv/LXZlY3Rvci0zMTgy/NzAwMS5qcGc`;
     const newUser = await connection.query(
@@ -221,7 +221,7 @@ exports.register = async (req, res) => {
       [
         firstname,
         lastname,
-        email,
+        email.trim().toLowerCase(),
         hashedPasssword,
         'password',
         isAgent ? 'agent' : 'customer',
@@ -241,7 +241,8 @@ exports.register = async (req, res) => {
       );
     }
 
-    const code = 1234;
+    // const code = 1234;
+    const code = Math.floor(1000 + Math.random() * 9000);
     await connection.query(
       `INSERT INTO codes (code, account_id, purpose, expires_at) VALUES (?, ?, ?, ?)`,
       [
@@ -269,7 +270,7 @@ exports.login = async (req, res) => {
   try {
     const [user] = await connection.query(
       'SELECT * FROM account WHERE email = ?',
-      [req.body.email]
+      [req.body.email.trim().toLowerCase()]
     );
     if (user.length === 0) {
       return res.status(404).json({ message: `User not found` });
@@ -330,7 +331,8 @@ exports.forgotPassword = async (req, res) => {
         .status(400)
         .json({ message: `Account with this email not found` });
     }
-    const code = 1234;
+    // const code = 1234;
+    const code = Math.floor(1000 + Math.random() * 9000);
     await connection.query(
       `INSERT INTO codes (code, account_id, purpose, expires_at) VALUES (?, ?, ?, ?)`,
       [
@@ -412,12 +414,13 @@ exports.resendVerificationCode = async (req, res) => {
     if (user[0].verified) {
       return res.status(400).json({ message: `Account is already verified` });
     }
-    const code = 1234;
+    // const code = 1234;
+    const code = Math.floor(1000 + Math.random() * 9000);
     await connection.query(
       `INSERT INTO codes (code, account_id, purpose, expires_at) VALUES (?, ?, ?, ?)`,
       [code, user[0].id, 'verification', new Date(Date.now() + 60 * 60 * 1000)]
     );
-    sendVerificationCode(email, code);
+    sendVerificationCode(email.trim().toLowerCase(), code);
     return res
       .status(200)
       .json({ message: `A new code has been sent to ${email}` });
