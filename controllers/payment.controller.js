@@ -390,7 +390,6 @@ exports.verifyPayment = async (req, res) => {
         ? new Date(metadata.endDate)
         : new Date();
 
-      // Convert endDate to MySQL timestamp
       const mysqlEndDate = endDate.toISOString().slice(0, 19).replace('T', ' ');
       const mysqlStartDate = startDate
         .toISOString()
@@ -517,6 +516,15 @@ exports.paystackWebhook = async (req, res) => {
         ? new Date(metadata.endDate)
         : new Date();
 
+        const mysqlEndDate = endDate
+          .toISOString()
+          .slice(0, 19)
+          .replace('T', ' ');
+        const mysqlStartDate = startDate
+          .toISOString()
+          .slice(0, 19)
+          .replace('T', ' ');
+
       await connection.query(
         `INSERT INTO property_transactions 
         (amount, duration_months, duration_days, property_id, account_id, transaction_id, 
@@ -529,9 +537,9 @@ exports.paystackWebhook = async (req, res) => {
           transactionRecord.property_id,
           transactionRecord.account_id,
           transactionRecord.id,
-          startDate,
-          endDate,
-          endDate,
+          mysqlStartDate,
+          mysqlEndDate,
+          mysqlEndDate,
         ]
       );
 
