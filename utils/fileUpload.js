@@ -1,4 +1,6 @@
 const cloudinary = require('cloudinary').v2;
+const sharp = require('sharp');
+const fs = require('fs');
 
 exports.uploadFileToCloudinary = async (file, folder = 'avatars') => {
   try {
@@ -25,4 +27,21 @@ exports.uploadDataURIToCloudinary = async (dataURI, folder = 'property') => {
   } catch (error) {
     throw new Error(`File upload failed: ${error.message}`);
   }
+}
+
+exports.addWatermarkToImage = async (base64Image) => {
+  const imageBuffer = Buffer.from(base64Image.split(',')[1], 'base64');
+
+  const finalImage = await sharp(imageBuffer)
+    .composite([
+      {
+        input: '../logo192.png',
+        gravity: 'southeast',
+        blend: 'overlay',
+        opacity: 0.5,
+      },
+    ])
+    .toBuffer();
+
+  return `data:image/png;base64,${finalImage.toString('base64')}`;
 }

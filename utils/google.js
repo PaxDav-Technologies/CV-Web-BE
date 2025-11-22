@@ -24,7 +24,9 @@ passport.use(
         const email = profile.emails[0].value;
         const [existingUsers] = await connection.query(
           `SELECT * FROM account WHERE email = ?`,
-          [email]
+          [email.trim()]
+
+          
         );
 
         if (existingUsers.length > 0) {

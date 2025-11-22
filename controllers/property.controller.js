@@ -1,5 +1,8 @@
 const { pool } = require('../config/db');
-const { uploadDataURIToCloudinary } = require('../utils/fileUpload');
+const {
+  uploadDataURIToCloudinary,
+  addWatermarkToImage,
+} = require('../utils/fileUpload');
 
 exports.getAllProperties = async (req, res) => {
   let connection;
@@ -287,7 +290,13 @@ exports.createProperty = async (req, res) => {
 
     const imageUrls = [];
     for (const image of images) {
-      const uploadedImage = await uploadDataURIToCloudinary(image, 'property');
+      const watermarkedImage = await addWatermarkToImage(
+        image
+      );
+      const uploadedImage = await uploadDataURIToCloudinary(
+        watermarkedImage,
+        'property'
+      );
       imageUrls.push(uploadedImage);
     }
 
@@ -310,7 +319,6 @@ exports.createProperty = async (req, res) => {
       });
     }
 
-    // 🟢 Determine if property should be publicized
     const publicized = role === 'admin' || role === 'super_admin' ? 1 : 0;
 
     let query = `
@@ -527,7 +535,6 @@ exports.updateProperty = async (req, res) => {
 
     connection = await pool.getConnection();
 
-    // Perform update
     params.push(parsedId);
     const sql = `UPDATE property SET ${updates.join(', ')} WHERE id = ?`;
     const [result] = await connection.query(sql, params);
@@ -536,7 +543,6 @@ exports.updateProperty = async (req, res) => {
       return res.status(404).json({ message: 'Property not found' });
     }
 
-    // Return updated record
     const [rows] = await connection.query(
       'SELECT * FROM property WHERE id = ?',
       [parsedId]
@@ -636,6 +642,257 @@ exports.getAmenities = async (req, res) => {
   } catch (error) {
     console.log(`Error getting amenities: ${error}`);
     return res.status(500).json({ message: `Internal Server Error` });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+exports.getRecommendedProperties = async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    const sql = `
+      SELECT 
+        p.*,
+        acc.suspended
+      FROM property p
+      JOIN account acc ON acc.id = p.owner_id
+      WHERE p.draft = 0 AND p.publicized = 1
+      ORDER BY RAND()
+      LIMIT 3
+    `;
+
+    const [properties] = await connection.query(sql);
+
+    if (properties.length > 0) {
+      const propertyIds = properties.map((p) => p.id);
+      const placeholders = propertyIds.map(() => '?').join(',');
+
+      const [amenityRows] = await connection.query(
+        `
+        SELECT 
+          pa.property_id,
+          a.name
+        FROM property_amenities pa
+        JOIN amenities a ON a.id = pa.amenity_id
+        WHERE pa.property_id IN (${placeholders})
+      `,
+        propertyIds
+      );
+
+      const amenityMap = {};
+      for (const row of amenityRows) {
+        if (!amenityMap[row.property_id]) {
+          amenityMap[row.property_id] = [];
+        }
+        amenityMap[row.property_id].push(row.name);
+      }
+
+      const enriched = properties.map((p) => ({
+        ...p,
+        amenities: amenityMap[p.id] || [],
+      }));
+
+      return res.status(200).json({
+        message: 'Success',
+        data: enriched,
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Success',
+      data: [],
+    });
+  } catch (error) {
+    console.error('getRecommendedProperties error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+exports.getPropertiesForYou = async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    const [categories] = await connection.query(`
+      SELECT DISTINCT category 
+      FROM property 
+      WHERE category IS NOT NULL AND category != ''
+    `);
+
+    const result = {};
+
+    for (const categoryObj of categories) {
+      const category = categoryObj.category;
+
+      const [properties] = await connection.query(
+        `
+        SELECT 
+          p.*,
+          acc.suspended
+        FROM property p
+        JOIN account acc ON acc.id = p.owner_id
+        WHERE p.category = ? 
+          AND p.draft = 0 
+          AND p.publicized = 1
+        ORDER BY RAND()
+        LIMIT 4
+      `,
+        [category]
+      );
+
+      if (properties.length > 0) {
+        const propertyIds = properties.map((p) => p.id);
+        const placeholders = propertyIds.map(() => '?').join(',');
+
+        const [amenityRows] = await connection.query(
+          `
+          SELECT 
+            pa.property_id,
+            a.name
+          FROM property_amenities pa
+          JOIN amenities a ON a.id = pa.amenity_id
+          WHERE pa.property_id IN (${placeholders})
+        `,
+          propertyIds
+        );
+
+        const amenityMap = {};
+        for (const row of amenityRows) {
+          if (!amenityMap[row.property_id]) {
+            amenityMap[row.property_id] = [];
+          }
+          amenityMap[row.property_id].push(row.name);
+        }
+
+        result[category] = properties.map((p) => ({
+          ...p,
+          amenities: amenityMap[p.id] || [],
+        }));
+      } else {
+        result[category] = [];
+      }
+    }
+
+    return res.status(200).json({
+      message: 'Success',
+      data: result,
+    });
+  } catch (error) {
+    console.error('getPropertiesForYou error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+exports.getTopCategories = async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    const sql = `
+      SELECT 
+        p.category,
+        p.main_photo,
+        COUNT(p.id) as property_count
+      FROM property p
+      JOIN account acc ON acc.id = p.owner_id
+      WHERE p.category IS NOT NULL 
+        AND p.category != '' 
+        AND p.main_photo IS NOT NULL
+        AND p.main_photo != ''
+        AND p.draft = 0 
+        AND p.publicized = 1
+      GROUP BY p.category, p.main_photo
+      ORDER BY property_count DESC
+      LIMIT 5
+    `;
+
+    const [categories] = await connection.query(sql);
+
+    const topCategories = categories.map((category) => ({
+      category: category.category,
+      image: category.main_photo,
+      property_count: category.property_count,
+    }));
+
+    return res.status(200).json({
+      message: 'Success',
+      data: topCategories,
+    });
+  } catch (error) {
+    console.error('getTopCategories error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
+  } finally {
+    if (connection) connection.release();
+  }
+};
+
+exports.getSpotlights = async (req, res) => {
+  let connection;
+  try {
+    connection = await pool.getConnection();
+
+    const sql = `
+      SELECT 
+        p.*,
+        acc.suspended
+      FROM property p
+      JOIN account acc ON acc.id = p.owner_id
+      WHERE p.draft = 0 
+        AND p.publicized = 1
+      ORDER BY p.total_price DESC
+      LIMIT 4
+    `;
+
+    const [properties] = await connection.query(sql);
+
+    if (properties.length > 0) {
+      const propertyIds = properties.map((p) => p.id);
+      const placeholders = propertyIds.map(() => '?').join(',');
+
+      const [amenityRows] = await connection.query(
+        `
+        SELECT 
+          pa.property_id,
+          a.name
+        FROM property_amenities pa
+        JOIN amenities a ON a.id = pa.amenity_id
+        WHERE pa.property_id IN (${placeholders})
+      `,
+        propertyIds
+      );
+
+      const amenityMap = {};
+      for (const row of amenityRows) {
+        if (!amenityMap[row.property_id]) {
+          amenityMap[row.property_id] = [];
+        }
+        amenityMap[row.property_id].push(row.name);
+      }
+
+      const enriched = properties.map((p) => ({
+        ...p,
+        amenities: amenityMap[p.id] || [],
+      }));
+
+      return res.status(200).json({
+        message: 'Success',
+        data: enriched,
+      });
+    }
+
+    return res.status(200).json({
+      message: 'Success',
+      data: [],
+    });
+  } catch (error) {
+    console.error('getSpotlights error:', error);
+    return res.status(500).json({ message: 'Internal Server Error' });
   } finally {
     if (connection) connection.release();
   }

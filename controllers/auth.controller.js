@@ -216,7 +216,7 @@ exports.register = async (req, res) => {
 
     const [userExists] = await connection.query(
       'SELECT * FROM account WHERE email = ?',
-      [email]
+      [email.trim()]
     );
     if (userExists.length > 0) {
       return res.status(400).json({ message: 'Email already in use' });
